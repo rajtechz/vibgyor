@@ -1,22 +1,36 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
-import { AccountVerifyBadge, HamburgerIcon, LikeIcon, CommentIcon, ShareIcon } from '../icons/SvgIcons';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, Modal } from 'react-native';
+import { AccountVerifyBadge, HamburgerIcon, LikeIcon, CommentIcon, ShareIcon, TrashIcon } from '../icons/SvgIcons';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const PostCard = ({ post, onPress }) => {
-  
+  const [showReportTooltip, setShowReportTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
- 
+  const moreButtonRef = useRef(null);
 
   const handleMorePress = (event) => {
     event.stopPropagation(); // Prevent triggering the post press
-    console.log('Hamburger pressed!');
-    moreButtonRef.current.measure((x, y, width, height, pageX, pageY) => {
-      console.log('Button position:', { x: pageX, y: pageY, width, height });
-     
-      console.log('Tooltip should be visible now');
-    });
+    
+    if (moreButtonRef.current) {
+      moreButtonRef.current.measure((x, y, width, height, pageX, pageY) => {
+        setTooltipPosition({
+          x: pageX - 80, // Position tooltip to the left of the button
+          y: pageY + 5 // Position tooltip slightly below the button
+        });
+        setShowReportTooltip(true);
+      });
+    }
+  };
+
+  const handleReportPress = () => {
+    setShowReportTooltip(false);
+    // Handle report functionality here
+    console.log('Report pressed for post:', post.id);
+  };
+
+  const handleCloseTooltip = () => {
+    setShowReportTooltip(false);
   };
 
 
@@ -37,7 +51,7 @@ const PostCard = ({ post, onPress }) => {
           </View>
         </View>
         <TouchableOpacity 
-         
+          ref={moreButtonRef}
           style={styles.moreButton}
           onPress={handleMorePress}
         >
@@ -85,7 +99,40 @@ const PostCard = ({ post, onPress }) => {
         <View style={styles.footerLine} />
       </View>
 
-      
+      {/* Report Tooltip Modal */}
+      <Modal
+        visible={showReportTooltip}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseTooltip}
+      >
+        <TouchableOpacity 
+          style={styles.tooltipOverlay}
+          activeOpacity={1}
+          onPress={handleCloseTooltip}
+        >
+          <View 
+            style={[
+              styles.reportTooltip,
+              {
+                left: tooltipPosition.x,
+                top: tooltipPosition.y,
+              }
+            ]}
+          >
+            <TouchableOpacity 
+              style={styles.reportButton}
+              onPress={handleReportPress}
+              activeOpacity={0.8}
+            >
+              <View style={styles.reportIcon}>
+                <TrashIcon width={16} height={16} color="white" />
+              </View>
+              <Text style={styles.reportText}>Report</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </TouchableOpacity>
   );
 };
@@ -228,6 +275,40 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  // Tooltip styles
+  tooltipOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  reportTooltip: {
+    position: 'absolute',
+    backgroundColor: 'transparent',
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 100,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  reportIcon: {
+    marginRight: 8,
+  },
+  reportText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

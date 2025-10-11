@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -59,6 +60,30 @@ const PostEditScreen = ({ route, navigation }) => {
   const [selectedFilter, setSelectedFilter] = useState('default');
   const [filters, setFilters] = useState(FILTERS);
 
+  // Hide bottom tab bar when this screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      // Hide tab bar
+      navigation.getParent()?.setOptions({
+        tabBarStyle: { display: 'none' }
+      });
+
+      // Show tab bar when leaving this screen
+      return () => {
+        navigation.getParent()?.setOptions({
+          tabBarStyle: { display: 'flex' }
+        });
+      };
+    }, [navigation])
+  );
+
+  // Also hide tab bar on component mount
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: 'none' }
+    });
+  }, [navigation]);
+
   const handleFilterSelect = (filterId) => {
     setSelectedFilter(filterId);
     setFilters(prev => 
@@ -81,23 +106,15 @@ const PostEditScreen = ({ route, navigation }) => {
 
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Upload Vibes</Text>
-      </View>
-
-      {/* Main Image Display */}
-      <View style={styles.imageContainer}>
+      {/* Full Screen Image */}
+      <View style={styles.fullScreenImageContainer}>
         {croppedImage ? (
           <Image 
             source={{ uri: croppedImage.uri }} 
-            style={styles.mainImage}
+            style={styles.fullScreenImage}
             resizeMode="cover"
           />
         ) : (
@@ -107,20 +124,29 @@ const PostEditScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {/* Horizontal Scrollable Filters */}
-      <View style={styles.filtersContainer}>
-        <Text style={styles.filtersTitle}>Filters</Text>
+      {/* Overlay Header */}
+      <View style={styles.overlayHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Upload Vibes</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      {/* Filters Section - Bottom Position */}
+      <View style={styles.filtersSection}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersList}
+          style={styles.filtersScrollView}
         >
-          {filters.map((filter) => (
+          {filters.map((filter, index) => (
             <TouchableOpacity
               key={filter.id}
               style={[
                 styles.filterItem,
-                filter.isSelected && styles.selectedFilterItem
+                filter.isSelected && styles.selectedFilterItem,
               ]}
               onPress={() => handleFilterSelect(filter.id)}
             >
@@ -136,63 +162,36 @@ const PostEditScreen = ({ route, navigation }) => {
         </ScrollView>
       </View>
 
-      {/* Bottom Action Buttons */}
-      <View style={styles.bottomContainer}>
+      {/* Overlay Bottom Action Buttons */}
+      <View style={styles.overlayBottomContainer}>
         <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
           <Text style={styles.addButtonText}>Add</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.uploadButton} onPress={handleUploadVibes}>
-          <LinearGradient
-            colors={['#DD3562', '#8354FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.uploadGradient}
-          >
-            <Text style={styles.uploadButtonText}>Upload Vibes</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.uploadButton} onPress={handleUploadVibes}>
+              <View style={styles.uploadGradient}>
+                <Text style={styles.uploadButtonText}>Upload Vibes</Text>
+              </View>
+            </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
+        container: {
+          flex: 1,
+          backgroundColor: '#281A62',
+        },
+  // Full Screen Image
+  fullScreenImageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: screenWidth * 0.05, // 5% of screen width
-    paddingVertical: screenHeight * 0.02, // 2% of screen height
-    backgroundColor: '#1a0033',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  backButton: {
-    padding: screenWidth * 0.02, // 2% of screen width
-  },
-  backIcon: {
-    color: '#fff',
-    fontSize: screenWidth * 0.06, // 6% of screen width
-    fontWeight: 'bold',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: screenWidth * 0.045, // 4.5% of screen width
-    fontWeight: 'bold',
-  },
-  imageContainer: {
-    height: screenHeight * 0.4, // 40% of screen height
-    marginHorizontal: screenWidth * 0.05, // 5% of screen width
-    marginVertical: screenHeight * 0.02, // 2% of screen height
-    borderRadius: screenWidth * 0.02, // 2% of screen width
-    overflow: 'hidden',
-  },
-  mainImage: {
+  fullScreenImage: {
     width: '100%',
     height: '100%',
   },
@@ -202,53 +201,86 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#333',
-    borderStyle: 'dashed',
   },
   placeholderText: {
     color: '#666',
-    fontSize: screenWidth * 0.04, // 4% of screen width
+    fontSize: screenWidth * 0.04,
   },
-  filtersContainer: {
-    backgroundColor: '#000',
-    paddingHorizontal: screenWidth * 0.05, // 5% of screen width
-    paddingVertical: screenHeight * 0.015, // 1.5% of screen height
+  // Overlay Header
+  overlayHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: screenWidth * 0.05,
+    paddingTop: screenHeight * 0.06, // Account for status bar
+    paddingBottom: screenHeight * 0.02,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 10,
+  },
+  backButton: {
+    padding: screenWidth * 0.02,
+  },
+  backIcon: {
+    color: '#fff',
+    fontSize: screenWidth * 0.06,
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: screenWidth * 0.045,
+    fontWeight: 'bold',
+  },
+  placeholder: {
+    width: screenWidth * 0.1, // Same width as back button for centering
+  },
+  // Filters Section - Bottom Position
+  filtersSection: {
+    position: 'absolute',
+    bottom: screenHeight * 0.15, // Above the action buttons
+    left: 0,
+    right: 0,
+    height: screenHeight * 0.12,
+    // backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  filtersScrollView: {
     flex: 1,
   },
-  filtersTitle: {
-    color: '#fff',
-    fontSize: screenWidth * 0.045, // 4.5% of screen width
-    fontWeight: 'bold',
-    marginBottom: screenHeight * 0.015, // 1.5% of screen height
-  },
   filtersList: {
-    paddingBottom: screenHeight * 0.01, // 1% of screen height
+    paddingHorizontal: screenWidth * 0.05,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterItem: {
     alignItems: 'center',
-    marginRight: screenWidth * 0.04, // 4% of screen width
-    padding: screenWidth * 0.025, // 2.5% of screen width
-    borderRadius: screenWidth * 0.03, // 3% of screen width
-    backgroundColor: '#2a2a2a',
+    marginHorizontal: screenWidth * 0.015,
+    padding: screenWidth * 0.02,
+    borderRadius: screenWidth * 0.03,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 2,
     borderColor: 'transparent',
-    width: screenWidth * 0.25, // 25% of screen width
-    minHeight: screenHeight * 0.12, // 12% of screen height
+    width: screenWidth * 0.18,
+    height: screenHeight * 0.08,
+    justifyContent: 'center',
   },
   selectedFilterItem: {
     borderColor: '#DD3562',
-    backgroundColor: 'rgba(221, 53, 98, 0.1)',
+    backgroundColor: 'rgba(221, 53, 98, 0.3)',
   },
   filterImage: {
-    width: screenWidth * 0.15, // 15% of screen width
-    height: screenWidth * 0.15, // 15% of screen width
-    borderRadius: screenWidth * 0.02, // 2% of screen width
-    marginBottom: screenHeight * 0.01, // 1% of screen height
+    width: screenWidth * 0.1,
+    height: screenWidth * 0.1,
+    borderRadius: screenWidth * 0.015,
+    marginBottom: screenHeight * 0.005,
   },
   filterName: {
-    color: '#B0B0B0',
-    fontSize: screenWidth * 0.03, // 3% of screen width
+    color: '#fff',
+    fontSize: screenWidth * 0.025,
     fontWeight: '500',
     textAlign: 'center',
   },
@@ -256,41 +288,46 @@ const styles = StyleSheet.create({
     color: '#DD3562',
     fontWeight: 'bold',
   },
-  bottomContainer: {
+  // Overlay Bottom Buttons
+  overlayBottomContainer: {
+    position: 'absolute',
+    bottom: screenHeight * 0.05,
+    left: screenWidth * 0.05,
+    right: screenWidth * 0.05,
     flexDirection: 'row',
-    paddingHorizontal: screenWidth * 0.05, // 5% of screen width
-    paddingVertical: screenHeight * 0.025, // 2.5% of screen height
-    backgroundColor: '#000',
-    gap: screenWidth * 0.03, // 3% of screen width
+    gap: screenWidth * 0.03,
+    zIndex: 10,
   },
   addButton: {
     flex: 1,
-    backgroundColor: '#2a2a2a',
-    paddingVertical: screenHeight * 0.02, // 2% of screen height
-    paddingHorizontal: screenWidth * 0.05, // 5% of screen width
-    borderRadius: screenWidth * 0.06, // 6% of screen width
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
+    paddingVertical: screenHeight * 0.02,
+    paddingHorizontal: screenWidth * 0.05,
+    borderRadius: screenWidth * 0.06,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: 'rgba(68, 68, 68, 0.8)',
+    backdropFilter: 'blur(10px)',
   },
   addButtonText: {
     color: '#fff',
-    fontSize: screenWidth * 0.04, // 4% of screen width
+    fontSize: screenWidth * 0.04,
     fontWeight: '600',
   },
   uploadButton: {
     flex: 2,
-    borderRadius: screenWidth * 0.06, // 6% of screen width
+    borderRadius: screenWidth * 0.06,
     overflow: 'hidden',
   },
-  uploadGradient: {
-    paddingVertical: screenHeight * 0.02, // 2% of screen height
-    paddingHorizontal: screenWidth * 0.05, // 5% of screen width
-    alignItems: 'center',
-  },
+        uploadGradient: {
+          paddingVertical: screenHeight * 0.02,
+          paddingHorizontal: screenWidth * 0.05,
+          alignItems: 'center',
+          backgroundColor: '#F44363',
+        },
   uploadButtonText: {
     color: '#fff',
-    fontSize: screenWidth * 0.04, // 4% of screen width
+    fontSize: screenWidth * 0.04,
     fontWeight: 'bold',
   },
 });

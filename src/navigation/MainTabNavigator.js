@@ -18,7 +18,6 @@ import ProfileStackNavigator from './ProfileStackNavigator';
 import MessagesStackNavigator from './MessagesStackNavigator';
 import SearchScreen from '../screens/SocialScreen/Search/SearchScreen';
 import PostScreen from '../screens/SocialScreen/Post/PostScreen';
-import PostEditScreen from '../screens/SocialScreen/Post/PostEditScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -161,14 +160,6 @@ function MainTabNavigator() {
         component={PostScreen}
         options={{
           tabBarIcon: PostIconGradient
-        }}
-      />
-      <Tab.Screen
-        name="PostEdit"
-        component={PostEditScreen}
-        options={{
-          tabBarIcon: PostIconGradient,
-          tabBarButton: () => null, // Hide from tab bar
         }}
       />
       <Tab.Screen

@@ -796,3 +796,94 @@ export const EmojiIcon = ({ width = 20, height = 21 }) => (
   </Svg>
 );
 
+// Calendar Icon Component (from PersonalDetailsScreen)
+export const CalendarIcon = ({ width = 21, height = 22 }) => (
+  <Svg width={width} height={height} viewBox="0 0 21 22" fill="none">
+    <Path
+      d="M1.0918 8.40424H18.9157"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M14.4407 12.3097H14.4499"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10.0032 12.3097H10.0124"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M5.55787 12.3097H5.56713"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M14.4407 16.1962H14.4499"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10.0032 16.1962H10.0124"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M5.55787 16.1962H5.56713"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M14.043 1V4.29078"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M5.96484 1V4.29078"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M15.2383 2.57922H6.77096C3.83427 2.57922 2 4.21516 2 7.22225V16.2719C2 19.3263 3.83427 21 6.77096 21H15.229C18.175 21 20 19.3546 20 16.3475V7.22225C20.0092 4.21516 18.1842 2.57922 15.2383 2.57922Z"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Trash/Delete Icon Component for Report functionality
+export const TrashIcon = ({ width = 16, height = 16, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 16 16" fill="none">
+    <Path
+      d="M2 4H14M5 4V2C5 1.44772 5.44772 1 6 1H10C10.5523 1 11 1.44772 11 2V4M13 4V14C13 14.5523 12.5523 15 12 15H4C3.44772 15 3 14.5523 3 14V4H13ZM6 7V12M8 7V12M10 7V12"
+      stroke={color}
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
