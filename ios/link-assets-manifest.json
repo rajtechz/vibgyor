@@ -1,0 +1,629 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "src/assets/backgroundImage/common.svg",
+      "sha1": "77c66558be453ecf4c20a62424cbb6f024448cfb"
+    },
+    {
+      "path": "src/assets/backgroundImage/Loading.svg",
+      "sha1": "f92984777d4f2a0b1c899e229481ce0aa157dabc"
+    },
+    {
+      "path": "src/assets/chatIcon/archiveicon.svg",
+      "sha1": "8680696a70347938dd326c64e25ab5b68486600e"
+    },
+    {
+      "path": "src/assets/chatIcon/audioIcon.svg",
+      "sha1": "eb9cef6eb5c74b5f0f4c75fbe696ad1984fca9d5"
+    },
+    {
+      "path": "src/assets/chatIcon/bgHeart1.svg",
+      "sha1": "a769cccca29fc57d49c284a6645ca115eb8d88b0"
+    },
+    {
+      "path": "src/assets/chatIcon/bgHeart2.svg",
+      "sha1": "65ee9906c6485ef7d85cd5cdac15863a5017fc34"
+    },
+    {
+      "path": "src/assets/chatIcon/bgHeart3.svg",
+      "sha1": "02b5d73340305ac424c42502fcd60a4eeeea0dc9"
+    },
+    {
+      "path": "src/assets/chatIcon/bgHeart4.svg",
+      "sha1": "5243ca4876ea6c84de342550689667f80acc2349"
+    },
+    {
+      "path": "src/assets/chatIcon/bgHeart5.svg",
+      "sha1": "54e522b0677ccb3dfc1f776f488e28819c4acabd"
+    },
+    {
+      "path": "src/assets/chatIcon/blockicon.svg",
+      "sha1": "7e660d758a9bafb1d6bab128a22a48df30464580"
+    },
+    {
+      "path": "src/assets/chatIcon/bottomWave.svg",
+      "sha1": "93b3a8f7b82ae6e9cfeb292ea9effff97c1c17bc"
+    },
+    {
+      "path": "src/assets/chatIcon/Call Button Container.svg",
+      "sha1": "7c1d670bc970052ee90353eaaf6d04109106fb21"
+    },
+    {
+      "path": "src/assets/chatIcon/clearicon.svg",
+      "sha1": "62c4bd61973861cbbb7870d80895eb1984bfea63"
+    },
+    {
+      "path": "src/assets/chatIcon/CloseButton.svg",
+      "sha1": "0c50e2f91f7b975371cd8f2f9d54412f8eeda67d"
+    },
+    {
+      "path": "src/assets/chatIcon/dlticon.svg",
+      "sha1": "7630d484c7d80d46697d85c8d205603c27791297"
+    },
+    {
+      "path": "src/assets/chatIcon/emojiIcon.svg",
+      "sha1": "f3741569e8845da0e3102b41f7ece18a146baafa"
+    },
+    {
+      "path": "src/assets/chatIcon/ep_mute.svg",
+      "sha1": "b0fcfd268c49ef87e7220f822b1e10d6274be72b"
+    },
+    {
+      "path": "src/assets/chatIcon/Glyph_ undefined.svg",
+      "sha1": "4c66a3b3449069bcd8ba7c10865b7949f35e2207"
+    },
+    {
+      "path": "src/assets/chatIcon/love.svg",
+      "sha1": "1a1be6963f1eddc88c29493a2ae9f3881054a5f4"
+    },
+    {
+      "path": "src/assets/chatIcon/mediaicon.svg",
+      "sha1": "6beab12bd068b56da5874bfe845c968088dc10bc"
+    },
+    {
+      "path": "src/assets/chatIcon/pinIcon.svg",
+      "sha1": "9a091353840e00a76b176e6843d38b0397c681eb"
+    },
+    {
+      "path": "src/assets/chatIcon/proicons_emoji.svg",
+      "sha1": "795f091a803e1d4687feb1008e4b05b29dcf9599"
+    },
+    {
+      "path": "src/assets/chatIcon/reporticon.svg",
+      "sha1": "c9a71d696cec9318798935393307a50d90ea1300"
+    },
+    {
+      "path": "src/assets/chatIcon/sendIcon.svg",
+      "sha1": "67b2e317d2f4cd14c17fa0b3d90d17272c872156"
+    },
+    {
+      "path": "src/assets/chatIcon/srchicon.svg",
+      "sha1": "82e6601aef43668e716360c0989f7a5645b99922"
+    },
+    {
+      "path": "src/assets/chatIcon/Swipe Screen Button Container.svg",
+      "sha1": "4ccf9e695a2c4fdccb60fff860ae106c9d5a538f"
+    },
+    {
+      "path": "src/assets/chatIcon/user.svg",
+      "sha1": "1b1810c55d308a38072eebdd1308d996da08ac17"
+    },
+    {
+      "path": "src/assets/chatIcon/videoCallIcon.svg",
+      "sha1": "91cc01366c54bc10b67a80ff9b25fae93b6a2df0"
+    },
+    {
+      "path": "src/assets/chatIcon/voiceIcon.svg",
+      "sha1": "2e8d1205f0359403bf882cab1b44b12294d6e1ee"
+    },
+    {
+      "path": "src/assets/DatingProfileImage/Match1.png",
+      "sha1": "af9425fe3a7b32b305bf18e3c0b0464a535fcff9"
+    },
+    {
+      "path": "src/assets/DatingProfileImage/Match2.png",
+      "sha1": "bc0020840b0fc4851ca1747ff275a0c47402b557"
+    },
+    {
+      "path": "src/assets/DatingProfileImage/Match3.png",
+      "sha1": "974366f3d42937230003dd3ff49973d323c5cf6d"
+    },
+    {
+      "path": "src/assets/DatingProfileImage/Match4.png",
+      "sha1": "4c997991231721d89d7315eb9e6c0ef321992b57"
+    },
+    {
+      "path": "src/assets/DatingProfileImage/Match5.png",
+      "sha1": "484b1b22e0d069a24138e2787ad2e4da6e6f7f71"
+    },
+    {
+      "path": "src/assets/DatingProfileImage/Match6.png",
+      "sha1": "9d1a6d4ff9fccc2ac6ea1442f03e28c3cc29a06e"
+    },
+    {
+      "path": "src/assets/fonts/fontOne.ttf",
+      "sha1": "eb1eee819deec7ed0ca42542d02e79c3b0c68952"
+    },
+    {
+      "path": "src/assets/fonts/fontSecond.ttf",
+      "sha1": "f0b973155b2836a02d172a742fb780a5abaf2c08"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-Black.ttf",
+      "sha1": "99bd69de20e74410418467b26a8429b992fa5a3f"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-Bold.ttf",
+      "sha1": "c3006fdc382624dd82e1fdec223e432d1c5efed2"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-ExtraBold.ttf",
+      "sha1": "b122c62f12996016805a82b14f2359b68d9f7611"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-ExtraLight.ttf",
+      "sha1": "258f3926a52b38b23138a6226fd16a1e48e0425d"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-Light.ttf",
+      "sha1": "68eaa46bda17b37e57df8dc2f2db9e546e5b15a8"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-Medium.ttf",
+      "sha1": "ecb541adfb5e827e3de237308772e103a553544d"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-Regular.ttf",
+      "sha1": "6b1a67df80ac5b837be9112bf27e6c718ed36c08"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-SemiBold.ttf",
+      "sha1": "6a67f0e2d1549f7a69c8caa2bbc04abe61e15bc9"
+    },
+    {
+      "path": "src/assets/fonts/Lexend-Thin.ttf",
+      "sha1": "2b79dbe78e4afcc7689d893791afb1960068a6b5"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/dlt icon.svg",
+      "sha1": "8d48a86a5b316835270d8d384b0afa2af7be9a3f"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/help icon.svg",
+      "sha1": "3d911650e95112c82dc2cecff9df0145a19e40f9"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/icomoon-free_blocked.svg",
+      "sha1": "7472ab14968f0faf90c89cc451a96b7dbc8fceb6"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/lock icon.svg",
+      "sha1": "37a3be871e694d8d2a594a3bd70c245b636f6cbc"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/macthes icon.svg",
+      "sha1": "c9744291d9b7b25cd6edb3be28ed035556ce4981"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/ntfctn icon.svg",
+      "sha1": "1242ba7351853f22b3e2988faa1adb515feb9e4e"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/prvcy icon.svg",
+      "sha1": "4496354f835703cff8f73e9da28bf151f235a2e7"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/safety icon.svg",
+      "sha1": "49a6aad98dd757e719b19f71abd8b23b8eb3ca5b"
+    },
+    {
+      "path": "src/assets/icons/accountSettingIcon/t&c icon.svg",
+      "sha1": "e3070485781df96d1742889d89c15e7751cbc94c"
+    },
+    {
+      "path": "src/assets/icons/accountVerifyBadge.svg",
+      "sha1": "6d889486f14c5c09061b0b0934429fc51e11aa18"
+    },
+    {
+      "path": "src/assets/icons/Background Container.svg",
+      "sha1": "7f3189e4947386bd4a79ea9e5bea4d17302ee21e"
+    },
+    {
+      "path": "src/assets/icons/backIcon.svg",
+      "sha1": "dde9f9d456cfea1eb29affc5f3b09433a1d9a8b3"
+    },
+    {
+      "path": "src/assets/icons/BottomTabIcon/home.svg",
+      "sha1": "bee4da2135204f0c1cef71656c06f91248dae054"
+    },
+    {
+      "path": "src/assets/icons/BottomTabIcon/message.svg",
+      "sha1": "7ecc1c85c19c3f63beb490c877c184e8f06bd6ed"
+    },
+    {
+      "path": "src/assets/icons/BottomTabIcon/post.svg",
+      "sha1": "bc2b306fa86c11830c6fe206f45e70c7d3f08a2a"
+    },
+    {
+      "path": "src/assets/icons/BottomTabIcon/search.svg",
+      "sha1": "da8538371d0092c101629c4ad92123f627637159"
+    },
+    {
+      "path": "src/assets/icons/bucket.svg",
+      "sha1": "6686877513002ad2901245b59046c106611cda7f"
+    },
+    {
+      "path": "src/assets/icons/Calendar.svg",
+      "sha1": "1499a953a1475c5e92c50993f2512098b809abd2"
+    },
+    {
+      "path": "src/assets/icons/Category/Category Icon-1.svg",
+      "sha1": "89e8c9a3fa025bb7086570a0bd46d1a57ba4761d"
+    },
+    {
+      "path": "src/assets/icons/Category/Category Icon.svg",
+      "sha1": "dda988bcb4136ebd92255eb9de1e27a0fd0799ca"
+    },
+    {
+      "path": "src/assets/icons/Category/fluent_location-48-filled.svg",
+      "sha1": "a71fbaade5c2b000e5e4a9f42218fc53fc3f5fe2"
+    },
+    {
+      "path": "src/assets/icons/Category/solar_copy-bold-duotone.svg",
+      "sha1": "8e3682a4ed19afbbfb49f72dab1a134e28059a5e"
+    },
+    {
+      "path": "src/assets/icons/cmra.svg",
+      "sha1": "11764b42b42cc82813e29f93ad5bba049f071f65"
+    },
+    {
+      "path": "src/assets/icons/comment.svg",
+      "sha1": "0c7df4fa80ae103d36741dd9b66b5bef309096b4"
+    },
+    {
+      "path": "src/assets/icons/DattingBottomIcon/chat.svg",
+      "sha1": "9f935600d5c611d7a845a48b4d7cfd0fa1ddc67d"
+    },
+    {
+      "path": "src/assets/icons/DattingBottomIcon/swipe.svg",
+      "sha1": "690799e3ae6e0d13817d75af70c83a5e72cf1878"
+    },
+    {
+      "path": "src/assets/icons/Dislike Button.svg",
+      "sha1": "392348ab1be2dc1f39e4640fd8a4c6c763a64e36"
+    },
+    {
+      "path": "src/assets/icons/drpdwnArrow.svg",
+      "sha1": "709ce886ebf666307cade1abc3968f71770397f0"
+    },
+    {
+      "path": "src/assets/icons/edit.svg",
+      "sha1": "757e0208b21d12aa091c1897bc745edb6f2c526c"
+    },
+    {
+      "path": "src/assets/icons/fb.png",
+      "sha1": "1fec2b9efeaf3adae6b16d8f13a5ed78f2d4656a"
+    },
+    {
+      "path": "src/assets/icons/FilterIconDating.svg",
+      "sha1": "b83d4ddf9cdb9b4b5c0b8dfbeddedd58d5f125b9"
+    },
+    {
+      "path": "src/assets/icons/gmail.png",
+      "sha1": "8817f5e296d1d61e5bd58d8f86b941e2179efab6"
+    },
+    {
+      "path": "src/assets/icons/hamburger.svg",
+      "sha1": "d385db082df29c6c3798d77dd10e4e8a79a2c927"
+    },
+    {
+      "path": "src/assets/icons/Icons.svg",
+      "sha1": "c10ba37e35925540e89885a0ae8b2078df0a0480"
+    },
+    {
+      "path": "src/assets/icons/Info Button.svg",
+      "sha1": "1ad37dcb73a3eed874303f7339851f0f2b730295"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/art.svg",
+      "sha1": "52e142181a21432a2cbaa2725e211ef2e381e4d5"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/camera.svg",
+      "sha1": "721f4ff169f1963cd404b182eb52aa73cf38e692"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/cart.svg",
+      "sha1": "21c6ece699550772a61f2c9808c2230f1f461f00"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/cooking.svg",
+      "sha1": "6b7908aac1a2c1d9e9f72425595ba1bdc73299df"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/extrem.svg",
+      "sha1": "4ed6b444f4c55f2f1f7f83ab9f49d3ea685b721b"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/fitness.svg",
+      "sha1": "5e23e0d7bdbb4ef2019fdce2abd08f1b0af36f83"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/game.svg",
+      "sha1": "df809ee8d8ba10e4d541492eca5236c7d1bfd662"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/mic.svg",
+      "sha1": "17a41359a5a5e43677550ddab8f88fe65b20ceea"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/music.svg",
+      "sha1": "701df99cf56910b869bdf974720c63bf6882f34c"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/swim.svg",
+      "sha1": "c6e920b411fd848f119a61f6fdb6945bee67963f"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/travelling.svg",
+      "sha1": "78ff51800e7087c49cb3c840c8e0f0158b613584"
+    },
+    {
+      "path": "src/assets/icons/interestIcons/wine.svg",
+      "sha1": "85c024b345c40c744a4f8c106dd79675d085b1e0"
+    },
+    {
+      "path": "src/assets/icons/Like Button.svg",
+      "sha1": "c2a43d712340a0264c777857414f32a25cfeb842"
+    },
+    {
+      "path": "src/assets/icons/like.svg",
+      "sha1": "3c0e1f1df7c7f1a12f01a6c6048e1f547d5c124b"
+    },
+    {
+      "path": "src/assets/icons/logo.png",
+      "sha1": "c888d2f710b144d7e35b8db074e539ae060c4850"
+    },
+    {
+      "path": "src/assets/icons/love sad icon.svg",
+      "sha1": "129802d5135a55cf2d9d70dc7ed361505ab66510"
+    },
+    {
+      "path": "src/assets/icons/next.svg",
+      "sha1": "ac62b10ba3378d03a1b768cb56c765b5971a6a98"
+    },
+    {
+      "path": "src/assets/icons/NotificationDating.svg",
+      "sha1": "ef1f0000822c2ebc31743e30729f23fff8274fdb"
+    },
+    {
+      "path": "src/assets/icons/postIcon.svg",
+      "sha1": "35c88021bb6309926e24e79133b3985df79fdc57"
+    },
+    {
+      "path": "src/assets/icons/postVibeIcon.svg",
+      "sha1": "e757386ad31e6aff55c3b0a51284337497710753"
+    },
+    {
+      "path": "src/assets/icons/postVibeText.svg",
+      "sha1": "68d913527da3b82a2f049de6ba3901229a6ddab2"
+    },
+    {
+      "path": "src/assets/icons/profileHamburger.svg",
+      "sha1": "b7f6b7454d27439876004e79f0019e6ccfeaaa04"
+    },
+    {
+      "path": "src/assets/icons/profileIcons/bi_gender-trans.svg",
+      "sha1": "90885c48b3a8f72b7420c330b3793fdb60cb6e71"
+    },
+    {
+      "path": "src/assets/icons/profileIcons/fluent_person-28-regular.svg",
+      "sha1": "52e8f84521b98e1e49646d405a461e53505781c6"
+    },
+    {
+      "path": "src/assets/icons/profileIcons/simple-icons_pronounsdotpage.svg",
+      "sha1": "a5fd94c3db3f9ae3753fda37c25548feec08f03b"
+    },
+    {
+      "path": "src/assets/icons/profileIcons/si_heart-line.svg",
+      "sha1": "b899a06ce532527221476dc3024404c53d7f7f88"
+    },
+    {
+      "path": "src/assets/icons/profileIcons/solar_user-id-broken.svg",
+      "sha1": "e18f81cf888d7be9bb745010f969360f53cee8aa"
+    },
+    {
+      "path": "src/assets/icons/profileIcons/weui_location-filled.svg",
+      "sha1": "12934afb302a19483f7a74c76f670c2fe2b229ae"
+    },
+    {
+      "path": "src/assets/icons/reelsIcon.svg",
+      "sha1": "160e3c9121c7302e2868f1c460026badf3ec12d8"
+    },
+    {
+      "path": "src/assets/icons/Settings Icon Container.svg",
+      "sha1": "04adcf5846523fc93b3a6212144dae2fc237a0fe"
+    },
+    {
+      "path": "src/assets/icons/share.svg",
+      "sha1": "096ddb47608c22aa1f6c210c7e934b95807c5135"
+    },
+    {
+      "path": "src/assets/icons/Success.svg",
+      "sha1": "f26efeb5f1b4d01e467640c8533f27cb98c6799e"
+    },
+    {
+      "path": "src/assets/icons/switchDating.svg",
+      "sha1": "4ee48330c63f438699e71d4427bbdcae7b64f99c"
+    },
+    {
+      "path": "src/assets/icons/switchSocial.svg",
+      "sha1": "2c4c3b4c81671e0476bb11ce9244655187c01cfe"
+    },
+    {
+      "path": "src/assets/icons/uploadDocIcon.svg",
+      "sha1": "d7fbb1c4bed272210184f8bfdd9b108798a7416d"
+    },
+    {
+      "path": "src/assets/icons/verifyCloseIcon.svg",
+      "sha1": "fe414fc2e9dc561c41a7917b20f382ed887eeace"
+    },
+    {
+      "path": "src/assets/icons/verifyModal.svg",
+      "sha1": "860b395d947fc7a8ddecdd6483f490741c15e024"
+    },
+    {
+      "path": "src/assets/images/addVibe.svg",
+      "sha1": "8afe410f3e2a7d9b2895ec68fd057ded7b8aaade"
+    },
+    {
+      "path": "src/assets/images/bottomWave.png",
+      "sha1": "aa26c971382ca5cbe8b9ec85581a65c9d7671eec"
+    },
+    {
+      "path": "src/assets/images/IntroImage.png",
+      "sha1": "b7b60d793d999821ca9b45581b2430e2535c040a"
+    },
+    {
+      "path": "src/assets/images/MainContent.png",
+      "sha1": "f4723811c50eeed66cd194be1ad099f6dbfe24c7"
+    },
+    {
+      "path": "src/assets/images/notificationUser/user1.png",
+      "sha1": "33ff7cbcc7e574cad9b17827f6f902fb07253e43"
+    },
+    {
+      "path": "src/assets/images/notificationUser/user2.png",
+      "sha1": "e174d381a4b77c8e70e3b4ac031f84274b4e9782"
+    },
+    {
+      "path": "src/assets/images/notificationUser/user3.png",
+      "sha1": "cc70cadc6cc51ac24f08ca0427514debc27fe996"
+    },
+    {
+      "path": "src/assets/images/notificationUser/user4.png",
+      "sha1": "0d00b741e869687a7c9b1b47fcc2c77995c33424"
+    },
+    {
+      "path": "src/assets/images/notificationUser/user5.png",
+      "sha1": "80bc533041dbf04ebe82c519d95dc268897efe21"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 10.png",
+      "sha1": "c66d4e65ff027ef36d5c279e336174dcfd4b2b81"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 11.png",
+      "sha1": "def05304a6c36ea411641d76e2463cccec5c7d08"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 12.png",
+      "sha1": "2fe96ce81011737aa6db9f0d76c4c56fc9a8bfe4"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 16.png",
+      "sha1": "1a3f1d96f0d043be53d7aa8422cb8e04642fa935"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 17.png",
+      "sha1": "aa0f3412647cc95bc7328d47d59cc761f709b6c7"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 19.png",
+      "sha1": "a5ee788527b2bd899808d72c4ff47a74ff96b085"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 20.png",
+      "sha1": "492db1a679b759df5e788a0f2d8ce6079974d511"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 21.png",
+      "sha1": "63ec987956bc82d98020b7fe59a91a06c5546853"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 4 (1).png",
+      "sha1": "ed7ed46402fa4466699ad96b7dd3ae1ffcdd5355"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 4.png",
+      "sha1": "08bb008c49d501f836d45b912c28ac743e25de72"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 5.png",
+      "sha1": "223dd3b99820935e5bfa7d35ce53cddaad89f615"
+    },
+    {
+      "path": "src/assets/images/postImage/Gallery Image 6.png",
+      "sha1": "396ae23cffa6dc604f93a191f77d9618d8432b6e"
+    },
+    {
+      "path": "src/assets/images/postvibe.png",
+      "sha1": "ccee49d8532cf2a419a8d0d8a5bdc208bf609388"
+    },
+    {
+      "path": "src/assets/images/Profile.png",
+      "sha1": "470d0c258f3cd4d5e9bad0aefb797e1952799e67"
+    },
+    {
+      "path": "src/assets/images/story1.png",
+      "sha1": "79eab2662ed8c8147a964432c9211488e1c12adb"
+    },
+    {
+      "path": "src/assets/images/story2.png",
+      "sha1": "04211d93ba2faa2a89f5fa0658854442cc89537e"
+    },
+    {
+      "path": "src/assets/images/swirlarrow.png",
+      "sha1": "9178b4bf3b95dfd9280e5c09d8933da9a3fd27b5"
+    },
+    {
+      "path": "src/assets/images/user.png",
+      "sha1": "f6a42a3b7274b57d5fa15c3b212695a166a706dc"
+    },
+    {
+      "path": "src/assets/images/vibe.png",
+      "sha1": "5de1824eadfdccc194680860f7ee97a0efa4f7a3"
+    },
+    {
+      "path": "src/assets/messageUser/message1.png",
+      "sha1": "d12f3c3b1611858402c9b168a15da93dc834d183"
+    },
+    {
+      "path": "src/assets/messageUser/message2.png",
+      "sha1": "26d7ddc43da31c280980a806fcc58f5acb9ea285"
+    },
+    {
+      "path": "src/assets/messageUser/message3.png",
+      "sha1": "844e26657bbad05b9c82205931be3d6b9f5022b2"
+    },
+    {
+      "path": "src/assets/messageUser/message4.png",
+      "sha1": "e11259c9082463c0da600d1bf10b3636c25fdf53"
+    },
+    {
+      "path": "src/assets/messageUser/test_match2.png",
+      "sha1": "bc0020840b0fc4851ca1747ff275a0c47402b557"
+    },
+    {
+      "path": "src/assets/receive.wav",
+      "sha1": "ea81d92e02cb68e23062229a73115a2bea2a4928"
+    },
+    {
+      "path": "src/assets/render.mp4",
+      "sha1": "b4cf381c9c5495934ea653d95923bf0b729e63b9"
+    },
+    {
+      "path": "src/assets/send.wav",
+      "sha1": "fe0df37513e065e8127241ef59bfc66dfe300ffb"
+    },
+    {
+      "path": "src/assets/sounds/recieve.mp3",
+      "sha1": "68ff5093c39c8d09b78b9c7a5d6d48a9b76a1a2d"
+    },
+    {
+      "path": "src/assets/sounds/send.mp3",
+      "sha1": "d4e2b5763928890478503ee3e715f3bdff81327e"
+    }
+  ]
+}

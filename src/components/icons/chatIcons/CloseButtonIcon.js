@@ -1,0 +1,32 @@
+import React from 'react';
+import Svg, { G, Rect, Path, Defs, Filter, FeFlood, FeColorMatrix, FeOffset, FeGaussianBlur, FeComposite, FeBlend, LinearGradient, Stop } from 'react-native-svg';
+
+const CloseButtonIcon = ({ width = 52, height = 52 }) => (
+  <Svg width={width} height={height} viewBox="0 0 52 52" fill="none">
+    <G filter="url(#filter0_d_577_3573)">
+      <Rect x="10" y="6" width="32" height="32" rx="16" fill="white"/>
+      <Path 
+        d="M24.1733 22.7076C24.5638 22.317 24.5638 21.6839 24.1733 21.2934L19.2825 16.4025C18.9733 16.0934 18.9733 15.5921 19.2825 15.2829C19.5917 14.9738 20.0929 14.9738 20.4021 15.2829L25.2929 20.1738C25.6834 20.5643 26.3166 20.5643 26.7071 20.1738L31.5979 15.2829C31.9071 14.9738 32.4083 14.9738 32.7175 15.2829C33.0267 15.5921 33.0267 16.0934 32.7175 16.4025L27.8267 21.2934C27.4362 21.6839 27.4362 22.317 27.8267 22.7076L32.7175 27.5984C33.0267 27.9076 33.0267 28.4088 32.7175 28.718C32.4083 29.0271 31.9071 29.0271 31.5979 28.718L26.7071 23.8272C26.3166 23.4366 25.6834 23.4366 25.2929 23.8272L20.4021 28.718C20.0929 29.0271 19.5917 29.0271 19.2825 28.718C18.9733 28.4088 18.9733 27.9076 19.2825 27.5984L24.1733 22.7076Z" 
+        fill="url(#paint0_linear_577_3573)"
+      />
+    </G>
+    <Defs>
+      <Filter id="filter0_d_577_3573" x="0" y="0" width="52" height="52" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <FeFlood floodOpacity="0" result="BackgroundImageFix"/>
+        <FeColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+        <FeOffset dy="4"/>
+        <FeGaussianBlur stdDeviation="5"/>
+        <FeComposite in2="hardAlpha" operator="out"/>
+        <FeColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.15 0"/>
+        <FeBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_577_3573"/>
+        <FeBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_577_3573" result="shape"/>
+      </Filter>
+      <LinearGradient id="paint0_linear_577_3573" x1="15.6113" y1="20.6498" x2="29.7122" y2="33.3827" gradientUnits="userSpaceOnUse">
+        <Stop stopColor="#DD3562"/>
+        <Stop offset="1" stopColor="#8354FF"/>
+      </LinearGradient>
+    </Defs>
+  </Svg>
+);
+
+export default CloseButtonIcon;

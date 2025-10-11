@@ -1,0 +1,12 @@
+export { default as MusicIcon } from './MusicIcon';
+export { default as CookingIcon } from './CookingIcon';
+export { default as SwimIcon } from './SwimIcon';
+export { default as TravellingIcon } from './TravellingIcon';
+export { default as ArtIcon } from './ArtIcon';
+export { default as CameraIcon } from './CameraIcon';
+export { default as CartIcon } from './CartIcon';
+export { default as ExtremIcon } from './ExtremIcon';
+export { default as FitnessIcon } from './FitnessIcon';
+export { default as GameIcon } from './GameIcon';
+export { default as MicIcon } from './MicIcon';
+export { default as WineIcon } from './WineIcon';
