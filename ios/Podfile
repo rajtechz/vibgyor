@@ -22,9 +22,7 @@ target 'Vibgyor' do
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     # Enables Fabric (New Architecture)
-    :fabric_enabled => true,
-    # Enables TurboModules (New Architecture)
-    :turbomodule_enabled => true
+    :fabric_enabled => true
   )
 
   post_install do |installer|

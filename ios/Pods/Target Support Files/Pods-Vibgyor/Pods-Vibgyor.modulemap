@@ -1,0 +1,6 @@
+module Pods_Vibgyor {
+  umbrella header "Pods-Vibgyor-umbrella.h"
+
+  export *
+  module * { export * }
+}
