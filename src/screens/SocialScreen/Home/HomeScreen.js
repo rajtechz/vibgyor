@@ -380,8 +380,6 @@ export default function HomeScreen() {
                     />
                 </View>
 
-              
-
                 {/* Posts Section */}
                 <View style={styles.postsSection}>
                  

@@ -16,7 +16,10 @@ import PrivacyPolicyScreen from '../screens/SocialScreen/Profile/PrivacyPolicySc
 import MyFollowersScreen from '../screens/SocialScreen/Profile/MyFollowersScreen';
 import MyFollowingScreen from '../screens/SocialScreen/Profile/MyFollowingScreen';
 import VerificationScreen from '../screens/SocialScreen/Profile/VerificationScreen';
+import UploadAadharScreen from '../screens/SocialScreen/Profile/UploadAadharScreen';
+import StartVerificationScreen from '../screens/SocialScreen/Profile/StartVerificationScreen';
 import MyPostScreen from '../screens/SocialScreen/Profile/MyPostScreen';
+import PostCardViewScreen from '../screens/SocialScreen/Profile/PostCardViewScreen';
 
 const Stack = createStackNavigator();
 
@@ -172,20 +175,41 @@ function ProfileStackNavigator() {
           cardStyle: { backgroundColor: '#140034' },
         }}
       />
-      <Stack.Screen 
-        name="Verification" 
-        component={VerificationScreen}
-        options={{
-          cardStyle: { backgroundColor: '#140034' },
-        }}
-      />
-      <Stack.Screen 
-        name="MyPostScreen" 
-        component={MyPostScreen}
-        options={{
-          cardStyle: { backgroundColor: '#140034' },
-        }}
-      />
+        <Stack.Screen 
+          name="Verification" 
+          component={VerificationScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="UploadAadhar" 
+          component={UploadAadharScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="StartVerification" 
+          component={StartVerificationScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="MyPostScreen" 
+          component={MyPostScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="PostCardView" 
+          component={PostCardViewScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
     </Stack.Navigator>
   );
 }

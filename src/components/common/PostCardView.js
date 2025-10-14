@@ -5,7 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const PostCard = ({ post, onPress, onCommentPress, showCommentInput, commentText, onCommentTextChange, onPostComment, onLikePress }) => {
+const PostCardView = ({ post, onPress, onCommentPress, showCommentInput, commentText, onCommentTextChange, onPostComment, onLikePress }) => {
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [isLiked, setIsLiked] = useState(false);
@@ -26,10 +26,10 @@ const PostCard = ({ post, onPress, onCommentPress, showCommentInput, commentText
     }
   };
 
-  const handleReportPress = () => {
+  const handleDeletePress = () => {
     setShowDeleteTooltip(false);
-    // Handle report functionality here
-    console.log('Report pressed for post:', post.id);
+    // Handle delete functionality here
+    console.log('Delete pressed for post:', post.id);
   };
 
   const handleCloseTooltip = () => {
@@ -198,13 +198,13 @@ const PostCard = ({ post, onPress, onCommentPress, showCommentInput, commentText
           >
             <TouchableOpacity 
               style={styles.deleteButton}
-              onPress={handleReportPress}
+              onPress={handleDeletePress}
               activeOpacity={0.8}
             >
               <View style={styles.deleteIcon}>
                 <TrashIcon width={16} height={16} color="white" />
               </View>
-              <Text style={styles.deleteText}>Report</Text>
+              <Text style={styles.deleteText}>Delete</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -430,4 +430,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PostCard;
+export default PostCardView;

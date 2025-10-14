@@ -46,8 +46,7 @@ function VerificationScreen() {
 
   const handleAadharVerification = () => {
     console.log('Aadhar Verification pressed');
-    // Navigate to Aadhar verification screen
-    // navigation.navigate('AadharVerification');
+    navigation.navigate('UploadAadhar');
   };
 
   const handleOtherVerification = () => {
