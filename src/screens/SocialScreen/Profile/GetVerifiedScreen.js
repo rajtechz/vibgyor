@@ -20,7 +20,7 @@ export default function GetVerifiedScreen() {
     const verificationOptions = [
         {
             id: '1',
-            title: 'Aadhar Verification',
+            title: 'Aadhar Verificationss',
             type: 'aadhar'
         },
         {
@@ -72,7 +72,7 @@ export default function GetVerifiedScreen() {
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <BackIcon width={24} height={24} color="#D9D8F3" />
+                    <BackIcon width={24} height={24} color="white" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Verification</Text>
                 <View style={styles.headerSpacer} />
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#DD3562',
+        color: 'white',
     },
     headerSpacer: {
         width: 40,
