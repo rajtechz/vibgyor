@@ -887,3 +887,25 @@ export const TrashIcon = ({ width = 16, height = 16, color = 'white' }) => (
   </Svg>
 );
 
+// Eye Icon Component for Views/Likes
+export const EyeIcon = ({ width = 20, height = 20, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Circle
+      cx="12"
+      cy="12"
+      r="3"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+

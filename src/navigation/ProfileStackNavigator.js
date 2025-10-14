@@ -13,6 +13,10 @@ import ChatSupportScreen from '../screens/SocialScreen/Profile/ChatSupportScreen
 import HelpCenterScreen from '../screens/SocialScreen/Profile/HelpCenterScreen';
 import TermsConditionsScreen from '../screens/SocialScreen/Profile/TermsConditionsScreen';
 import PrivacyPolicyScreen from '../screens/SocialScreen/Profile/PrivacyPolicyScreen';
+import MyFollowersScreen from '../screens/SocialScreen/Profile/MyFollowersScreen';
+import MyFollowingScreen from '../screens/SocialScreen/Profile/MyFollowingScreen';
+import VerificationScreen from '../screens/SocialScreen/Profile/VerificationScreen';
+import MyPostScreen from '../screens/SocialScreen/Profile/MyPostScreen';
 
 const Stack = createStackNavigator();
 
@@ -150,6 +154,34 @@ function ProfileStackNavigator() {
       <Stack.Screen 
         name="PrivacyPolicy" 
         component={PrivacyPolicyScreen}
+        options={{
+          cardStyle: { backgroundColor: '#140034' },
+        }}
+      />
+      <Stack.Screen 
+        name="MyFollowers" 
+        component={MyFollowersScreen}
+        options={{
+          cardStyle: { backgroundColor: '#140034' },
+        }}
+      />
+      <Stack.Screen 
+        name="MyFollowing" 
+        component={MyFollowingScreen}
+        options={{
+          cardStyle: { backgroundColor: '#140034' },
+        }}
+      />
+      <Stack.Screen 
+        name="Verification" 
+        component={VerificationScreen}
+        options={{
+          cardStyle: { backgroundColor: '#140034' },
+        }}
+      />
+      <Stack.Screen 
+        name="MyPostScreen" 
+        component={MyPostScreen}
         options={{
           cardStyle: { backgroundColor: '#140034' },
         }}

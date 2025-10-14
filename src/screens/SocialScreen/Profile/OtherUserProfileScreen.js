@@ -1,12 +1,11 @@
-// src/screens/Profile/ProfileScreen.js
+// src/screens/Profile/OtherUserProfileScreen.js
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, StatusBar, Image, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Rect, G } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
-import { clearAuthData } from '../../../utils/authUtils';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { AccountVerifyBadge, HamburgerIcon } from '../../../components/icons/SvgIcons';
 import CommonBackground from '../../../components/common/CommonBackground';
 import ModeSwitchHeader from '../../../components/common/ModeSwitchHeader';
@@ -15,7 +14,7 @@ import ReelsTab from '../../../components/profile/ReelsTab';
 
 // Settings Icon Component
 const SettingsIcon = ({ width = 24, height = 24, color = '#B0B0B0' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fil l="none">
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
     <Path
       d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"
       stroke={color}
@@ -74,7 +73,6 @@ const ProfileSection = ({ title, children }) => (
     {children}
   </View>
 );
-
 
 // Setting Item Component
 const SettingItem = ({ title, subtitle, onPress, rightComponent, showArrow = true }) => (
@@ -178,10 +176,28 @@ const GradientBorder = ({ children, style }) => (
   </View>
 );
 
-function ProfileScreen() {
+function OtherUserProfileScreen() {
   const [activeTab, setActiveTab] = useState('grid');
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
+  
+  // Get user data from route params
+  const { userData } = route.params || {};
+  
+  // Default user data if not provided
+  const defaultUserData = {
+    username: 'Emma_Wilson',
+    fullName: 'Emma Wilson',
+    gender: 'Female (She/her)',
+    bio: 'Love music, cooking, swimming, going out, travelling etc. Wanna be friends??',
+    following: '15K',
+    followers: '200K',
+    isVerified: true,
+    avatar: require('../../../assets/DatingProfileImage/Match1.png'),
+  };
+  
+  const user = userData || defaultUserData;
   
   // Animation for hamburger button
   const hamburgerScale = useRef(new Animated.Value(1)).current;
@@ -201,22 +217,9 @@ function ProfileScreen() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Navigate after animation completes
-      navigation.navigate('Settings');
+      // Navigate back or to settings
+      navigation.goBack();
     });
-  };
-
-  const handleLogout = async () => {
-    try {
-      await clearAuthData();
-      // Navigate to login screen or reset navigation stack
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Auth' }],
-      });
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
   };
 
   return (
@@ -233,7 +236,7 @@ function ProfileScreen() {
 
         {/* Username and Menu */}
         <View style={styles.usernameSection}>
-          <Text style={styles.username}>Mathew_ben</Text>
+          <Text style={styles.username}>{user.username}</Text>
           <Animated.View style={{ transform: [{ scale: hamburgerScale }] }}>
             <TouchableOpacity
               style={styles.menuButton}
@@ -248,26 +251,20 @@ function ProfileScreen() {
         <View style={styles.profileInfo}>
           <View style={styles.profileImage}>
             <Image
-              source={require('../../../assets/messageUser/message1.png')}
+              source={user.avatar}
               style={styles.profileImageStyle}
             />
           </View>
           <View style={styles.profileRight}>
             <View style={styles.statsContainer}>
-              <TouchableOpacity 
-                style={styles.statItem}
-                onPress={() => navigation.navigate('MyFollowing')}
-              >
-                <Text style={styles.statNumber}>15K</Text>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{user.following}</Text>
                 <Text style={styles.statLabel}>Following</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.statItem}
-                onPress={() => navigation.navigate('MyFollowers')}
-              >
-                <Text style={styles.statNumber}>200K</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{user.followers}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
-              </TouchableOpacity>
+              </View>
             </View>
             <View style={styles.verifyButtonContainer}>
               <LinearGradient
@@ -276,15 +273,11 @@ function ProfileScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.verifyButtonGradient}
               >
-                <TouchableOpacity 
-                  style={styles.verifyButton} 
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate('Verification')}
-                >
+                <TouchableOpacity style={styles.verifyButton} activeOpacity={0.8}>
                   <MaskedView
                     maskElement={
                       <Text style={[styles.verifyButtonText, { backgroundColor: 'transparent' }]}>
-                        Get Verified
+                        Follow
                       </Text>
                     }
                     style={styles.maskedViewContainer}
@@ -296,7 +289,7 @@ function ProfileScreen() {
                       style={styles.gradientTextContainer}
                     >
                       <Text style={[styles.verifyButtonText, { opacity: 0 }]}>
-                        Get Verified
+                        Follow
                       </Text>
                     </LinearGradient>
                   </MaskedView>
@@ -309,16 +302,16 @@ function ProfileScreen() {
         {/* Name and Bio */}
         <View style={styles.nameSection}>
           <View style={styles.nameRow}>
-            <Text style={styles.fullName}>Mathew Ben</Text>
-            <AccountVerifyBadge width={20} height={20} />
+            <Text style={styles.fullName}>{user.fullName}</Text>
+            {user.isVerified && <AccountVerifyBadge width={20} height={20} />}
           </View>
-          <Text style={styles.gender}>Female (He/him)</Text>
+          <Text style={styles.gender}>{user.gender}</Text>
         </View>
 
         <View style={styles.bioSection}>
           <Text style={styles.bioTitle}>Short Bio</Text>
           <Text style={styles.bioText}>
-            Love music, cooking, swimming, going out, travellig etc. Wanna be friends??
+            {user.bio}
           </Text>
         </View>
 
@@ -326,9 +319,9 @@ function ProfileScreen() {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => navigation.navigate('EditProfile')}
+            onPress={() => console.log('Block Profile')}
           >
-            <Text style={styles.actionButtonText}>Edit Profile </Text>
+            <Text style={styles.actionButtonText}>Block Profile</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton}>
             <Text style={styles.actionButtonText}>Share Profile</Text>
@@ -364,7 +357,7 @@ function ProfileScreen() {
 
         {/* Content Grid */}
         <View style={styles.contentGrid}>
-          {activeTab === 'grid' ? <PostsTab navigation={navigation} /> : <ReelsTab />}
+          {activeTab === 'grid' ? <PostsTab /> : <ReelsTab />}
         </View>
 
       
@@ -550,6 +543,24 @@ const styles = StyleSheet.create({
     marginRight: -20,
     position: 'relative',
   },
+  dividerContainer: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: 20,
+    marginLeft: -20,
+    marginRight: -20,
+    position: 'relative',
+  },
+  dividerInactive: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  dividerActive: {
+    position: 'absolute',
+    top: 0,
+    height: 1,
+    backgroundColor: 'white',
+  },
   contentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -571,7 +582,49 @@ const styles = StyleSheet.create({
     color: '#B0B0B0',
     fontSize: 12,
   },
- 
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'white',
+    marginBottom: 16,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  settingContent: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 16,
+    color: 'white',
+    marginBottom: 4,
+  },
+  settingSubtitle: {
+    fontSize: 14,
+    color: '#B0B0B0',
+  },
+  settingRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gradientBorderContainer: {
+    position: 'relative',
+  },
+  gradientBorderContent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
 });
 
-export default ProfileScreen;
+export default OtherUserProfileScreen;

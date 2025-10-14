@@ -101,7 +101,21 @@ const PostEditScreen = ({ route, navigation }) => {
 
   const handleUploadVibes = () => {
     console.log('Upload Vibes button pressed');
-    // Handle upload functionality
+    // Create multiple images array for dynamic story
+    const multipleImages = [
+      croppedImage,
+      { uri: 'https://picsum.photos/400/600?random=1' },
+      { uri: 'https://picsum.photos/400/600?random=2' },
+      { uri: 'https://picsum.photos/400/600?random=3' },
+      { uri: 'https://picsum.photos/400/600?random=4' }
+    ].filter(Boolean); // Remove any null/undefined images
+    
+    // Navigate to SelfStory page
+    navigation.navigate('SelfStory', { 
+      croppedImage: croppedImage,
+      selectedFilter: selectedFilter,
+      multipleImages: multipleImages
+    });
   };
 
 
@@ -169,9 +183,14 @@ const PostEditScreen = ({ route, navigation }) => {
         </TouchableOpacity>
         
             <TouchableOpacity style={styles.uploadButton} onPress={handleUploadVibes}>
-              <View style={styles.uploadGradient}>
+              <LinearGradient
+                colors={['#F44363', '#9C27B0']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.uploadGradient}
+              >
                 <Text style={styles.uploadButtonText}>Upload Vibes</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
       </View>
     </View>
@@ -301,9 +320,9 @@ const styles = StyleSheet.create({
   addButton: {
     flex: 1,
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    paddingVertical: screenHeight * 0.02,
+    paddingVertical: screenHeight * 0.012,
     paddingHorizontal: screenWidth * 0.05,
-    borderRadius: screenWidth * 0.06,
+    borderRadius: screenWidth * 0.08,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(68, 68, 68, 0.8)',
@@ -316,14 +335,13 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     flex: 2,
-    borderRadius: screenWidth * 0.06,
+    borderRadius: screenWidth * 0.08,
     overflow: 'hidden',
   },
         uploadGradient: {
-          paddingVertical: screenHeight * 0.02,
+          paddingVertical: screenHeight * 0.012,
           paddingHorizontal: screenWidth * 0.05,
           alignItems: 'center',
-          backgroundColor: '#F44363',
         },
   uploadButtonText: {
     color: '#fff',

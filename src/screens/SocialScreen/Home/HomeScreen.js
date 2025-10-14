@@ -121,9 +121,6 @@ const POSTS_DATA = [
 ];
 
 
-
-
-
 // Card Component - no hooks inside
 const CarouselCard = ({ item, animatedStyle, onPress }) => (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
@@ -151,8 +148,6 @@ const CarouselCard = ({ item, animatedStyle, onPress }) => (
         </Animated.View>
     </TouchableOpacity>
 );
-
-
 
 export default function HomeScreen() {
     const flatListRef = useRef();
@@ -182,7 +177,23 @@ export default function HomeScreen() {
 
     const handlePostPress = (post) => {
         console.log('Post pressed:', post.id);
-      
+        
+        // Navigate to OtherUserProfile for Emma Wilson's post
+        if (post.user.name === 'Emma Wilson') {
+            console.log('Emma Wilson post pressed - navigating to OtherUserProfile');
+            const userData = {
+                username: 'Emma_Wilson',
+                fullName: 'Emma Wilson',
+                gender: 'Female (She/her)',
+                bio: 'Love music, cooking, swimming, going out, travelling etc. Wanna be friends??',
+                following: '15K',
+                followers: '200K',
+                isVerified: true,
+                avatar: require('../../../assets/DatingProfileImage/Match1.png'),
+            };
+            navigation.navigate('OtherUserProfile', { userData });
+            return;
+        }
     };
 
     const handleCarouselCardPress = (item) => {
@@ -192,6 +203,23 @@ export default function HomeScreen() {
         if (item.isAdd) {
             console.log('AddVibe card pressed - opening Instagram media picker');
             setShowInstagramPicker(true);
+            return;
+        }
+        
+        // Navigate to OtherUserProfile for Emma Wilson
+        if (item.id === 'story1' && item.name === 'Emma Wilson') {
+            console.log('Emma Wilson card pressed - navigating to OtherUserProfile');
+            const userData = {
+                username: 'Emma_Wilson',
+                fullName: 'Emma Wilson',
+                gender: 'Female (She/her)',
+                bio: 'Love music, cooking, swimming, going out, travelling etc. Wanna be friends??',
+                following: '15K',
+                followers: '200K',
+                isVerified: true,
+                avatar: require('../../../assets/DatingProfileImage/Match1.png'),
+            };
+            navigation.navigate('OtherUserProfile', { userData });
             return;
         }
         
@@ -247,11 +275,7 @@ export default function HomeScreen() {
             // Simulate API call or data refresh
             await new Promise(resolve => setTimeout(resolve, 1500));
 
-            // Here you can add your actual refresh logic:
-            // - Fetch new data from API
-            // - Update Redux state
-            // - Refresh carousel data
-            // - Update user profile
+           
 
             console.log('Content refreshed successfully');
 
