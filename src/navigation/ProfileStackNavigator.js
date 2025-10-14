@@ -20,6 +20,7 @@ import UploadAadharScreen from '../screens/SocialScreen/Profile/UploadAadharScre
 import StartVerificationScreen from '../screens/SocialScreen/Profile/StartVerificationScreen';
 import MyPostScreen from '../screens/SocialScreen/Profile/MyPostScreen';
 import PostCardViewScreen from '../screens/SocialScreen/Profile/PostCardViewScreen';
+import OtherUserPostViewScreen from '../screens/SocialScreen/Profile/OtherUserPostViewScreen';
 
 const Stack = createStackNavigator();
 
@@ -206,6 +207,13 @@ function ProfileStackNavigator() {
         <Stack.Screen 
           name="PostCardView" 
           component={PostCardViewScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="OtherUserPostView" 
+          component={OtherUserPostViewScreen}
           options={{
             cardStyle: { backgroundColor: '#140034' },
           }}

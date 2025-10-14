@@ -227,7 +227,21 @@ function OtherUserProfileScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#140034" />
 
       {/* Header */}
-      <ModeSwitchHeader customTitle="Profile" style={{ paddingTop: insets.top }} />
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M19 12H5M12 19L5 12L12 5"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profile</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -357,7 +371,7 @@ function OtherUserProfileScreen() {
 
         {/* Content Grid */}
         <View style={styles.contentGrid}>
-          {activeTab === 'grid' ? <PostsTab /> : <ReelsTab />}
+          {activeTab === 'grid' ? <PostsTab navigation={navigation} /> : <ReelsTab />}
         </View>
 
       
@@ -367,6 +381,25 @@ function OtherUserProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: '#140034',
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'white',
+  },
+  headerSpacer: {
+    width: 40,
+  },
   scrollView: {
     flex: 1,
     paddingHorizontal: 20,

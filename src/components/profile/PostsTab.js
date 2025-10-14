@@ -20,8 +20,8 @@ const PostsTab = ({ navigation }) => {
 
   const handlePostPress = (image, index) => {
     console.log('Post pressed:', index);
-    console.log('Navigating to MyPostScreen...');
-    nav.navigate('MyPostScreen');
+    console.log('Navigating to OtherUserPostView...');
+    nav.navigate('OtherUserPostView');
   };
 
   return (
