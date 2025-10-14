@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import CommonBackground from '../../../components/common/CommonBackground';
 import ModeSwitchHeader from '../../../components/common/ModeSwitchHeader';
-import PostCard from '../../../components/common/PostCard';
+import PostCardView from '../../../components/common/PostCardView';
 import Svg, { Path } from 'react-native-svg';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -259,19 +259,19 @@ function MyPostScreen() {
 
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Multiple Post Cards */}
-        {MY_POSTS_DATA.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            onPress={() => handlePostPress(post)}
-            onCommentPress={handleComment}
-            onLikePress={handleLike}
-            showCommentInput={commentStates[post.id] || false}
-            commentText={commentTexts[post.id] || ''}
-            onCommentTextChange={handleCommentTextChange}
-            onPostComment={handlePostComment}
-          />
-        ))}
+          {MY_POSTS_DATA.map((post) => (
+            <PostCardView
+              key={post.id}
+              post={post}
+              onPress={() => handlePostPress(post)}
+              onCommentPress={handleComment}
+              onLikePress={handleLike}
+              showCommentInput={commentStates[post.id] || false}
+              commentText={commentTexts[post.id] || ''}
+              onCommentTextChange={handleCommentTextChange}
+              onPostComment={handlePostComment}
+            />
+          ))}
       </ScrollView>
 
     </KeyboardAvoidingView>
