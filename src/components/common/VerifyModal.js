@@ -1,10 +1,45 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Animated } from 'react-native';
 import Svg, { Rect, Path, G, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Circle } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const VerifyModal = ({ visible, onClose }) => {
+  const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      // Animate in from top
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Animate out to top
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: -screenHeight,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible, slideAnim, fadeAnim]);
+
   const handleGetVerified = () => {
     // Handle verification action
     console.log('Get Verified button pressed');
@@ -13,13 +48,18 @@ const VerifyModal = ({ visible, onClose }) => {
 
   return (
     <Modal
-      animationType="fade"
+      animationType="none"
       transparent={true}
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
+      <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
+        <Animated.View style={[
+          styles.modalContainer,
+          {
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}>
           {/* Background SVG */}
           <Svg width={327} height={308} viewBox="0 0 328 308" style={styles.backgroundImage}>
             <Rect x="1" width="327" height="308" rx="35" fill="url(#paint0_linear_1229_1358)"/>
@@ -109,8 +149,8 @@ const VerifyModal = ({ visible, onClose }) => {
               <Text style={styles.verifyButtonText}>GET VERIFIED NOW</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 };

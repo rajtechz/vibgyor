@@ -7,6 +7,7 @@ import PronounsScreen from '../screens/ProfileSetup/PronounsScreen';
 import InterestsScreen from '../screens/ProfileSetup/InterestsScreen';
 import UploadIDScreen from '../screens/ProfileSetup/UploadIDScreen';
 import LocationScreen from '../screens/ProfileSetup/LocationScreen';
+import PreferencesScreen from '../screens/ProfileSetup/PreferencesScreen';
 import SwitchProfilesScreen from '../screens/ProfileSetup/SwitchProfilesScreen';
 
 const Stack = createStackNavigator();
@@ -85,6 +86,10 @@ function ProfileSetupNavigator() {
       <Stack.Screen 
         name="Location" 
         component={LocationScreen} 
+      />
+      <Stack.Screen 
+        name="Preferences" 
+        component={PreferencesScreen} 
       />
       <Stack.Screen 
         name="SwitchProfiles" 

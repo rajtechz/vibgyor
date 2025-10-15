@@ -82,6 +82,33 @@ const POSTS_DATA = [
         timeAgo: '2 hours ago',
     },
     {
+        id: 'suggestions',
+        type: 'suggestions',
+        title: 'Suggestions',
+        suggestions: [
+            {
+                id: 'sug1',
+                name: 'Emma Wilson',
+                image: require('../../../assets/DatingProfileImage/Match1.png'),
+            },
+            {
+                id: 'sug2',
+                name: 'Alex Chen',
+                image: require('../../../assets/DatingProfileImage/Match2.png'),
+            },
+            {
+                id: 'sug3',
+                name: 'Sarah Johnson',
+                image: require('../../../assets/DatingProfileImage/Match3.png'),
+            },
+            {
+                id: 'sug4',
+                name: 'Mike Rodriguez',
+                image: require('../../../assets/DatingProfileImage/Match4.png'),
+            },
+        ]
+    },
+    {
         id: '2',
         user: {
             name: 'Alex Chen',
@@ -137,6 +164,23 @@ const CarouselCard = ({ item, animatedStyle, onPress }) => (
                 }}
             />
 
+            {/* User Info Overlay for story cards */}
+            {!item.isAdd && (
+                <View style={styles.userInfoOverlay}>
+                    <View style={styles.userInfoRow}>
+                        <Image 
+                            source={item.image} 
+                            style={styles.userAvatar} 
+                            resizeMode="cover"
+                        />
+                        <View style={styles.userDetails}>
+                            <Text style={styles.userName}>{item.name}</Text>
+                            <Text style={styles.userTime}>4h</Text>
+                        </View>
+                    </View>
+                </View>
+            )}
+
             {item.isAdd && (
                 <View style={styles.addOverlay}>
                     <PostVibeText width={120} height={45} />
@@ -147,6 +191,33 @@ const CarouselCard = ({ item, animatedStyle, onPress }) => (
             )}
         </Animated.View>
     </TouchableOpacity>
+);
+
+// Suggestions Card Component
+const SuggestionsCard = ({ item }) => (
+    <View style={styles.suggestionsContainer}>
+        <Text style={styles.suggestionsTitle}>{item.title}</Text>
+        <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionsScrollContent}
+        >
+            {item.suggestions.map((suggestion) => (
+                <TouchableOpacity 
+                    key={suggestion.id} 
+                    style={styles.suggestionCard}
+                    activeOpacity={0.8}
+                >
+                    <Image 
+                        source={suggestion.image} 
+                        style={styles.suggestionImage}
+                        resizeMode="cover"
+                    />
+                    <Text style={styles.suggestionName}>{suggestion.name}</Text>
+                </TouchableOpacity>
+            ))}
+        </ScrollView>
+    </View>
 );
 
 export default function HomeScreen() {
@@ -178,10 +249,9 @@ export default function HomeScreen() {
     const handlePostPress = (post) => {
         console.log('Post pressed:', post.id);
         
-        // Navigate to OtherUserProfile for Emma Wilson's post
-        if (post.user.name === 'Emma Wilson') {
-            console.log('Emma Wilson post pressed - navigating to OtherUserProfile');
-            const userData = {
+        // Create user data mapping for all posts
+        const userDataMap = {
+            'Emma Wilson': {
                 username: 'Emma_Wilson',
                 fullName: 'Emma Wilson',
                 gender: 'Female (She/her)',
@@ -190,9 +260,44 @@ export default function HomeScreen() {
                 followers: '200K',
                 isVerified: true,
                 avatar: require('../../../assets/DatingProfileImage/Match1.png'),
-            };
+            },
+            'Alex Chen': {
+                username: 'Alex_Chen',
+                fullName: 'Alex Chen',
+                gender: 'Male (He/him)',
+                bio: 'Creative developer & designer. Always exploring new ideas! 💻',
+                following: '8K',
+                followers: '45K',
+                isVerified: false,
+                avatar: require('../../../assets/DatingProfileImage/Match2.png'),
+            },
+            'Sarah Johnson': {
+                username: 'Sarah_Johnson',
+                fullName: 'Sarah Johnson',
+                gender: 'Female (She/her)',
+                bio: 'Photographer & Travel enthusiast. Love capturing moments! 📸',
+                following: '12K',
+                followers: '67K',
+                isVerified: true,
+                avatar: require('../../../assets/DatingProfileImage/Match3.png'),
+            },
+            'Mike Rodriguez': {
+                username: 'Mike_Rodriguez',
+                fullName: 'Mike Rodriguez',
+                gender: 'Male (He/him)',
+                bio: 'Coffee lover & Developer. Always coding something new! ☕',
+                following: '6K',
+                followers: '28K',
+                isVerified: false,
+                avatar: require('../../../assets/DatingProfileImage/Match4.png'),
+            },
+        };
+
+        // Navigate to OtherUserProfile for any post
+        const userData = userDataMap[post.user.name];
+        if (userData) {
+            console.log(`${post.user.name} post pressed - navigating to OtherUserProfile`);
             navigation.navigate('OtherUserProfile', { userData });
-            return;
         }
     };
 
@@ -286,7 +391,7 @@ export default function HomeScreen() {
         }
     };
 
-    // Show modal after 2 seconds when component mounts (only once)
+    // Show modal after 1 second when component mounts (only once)
     useEffect(() => {
         let timer;
         
@@ -295,7 +400,7 @@ export default function HomeScreen() {
             timer = setTimeout(() => {
                 setShowVerifyModal(true);
                 dispatch(setVerifyModalShown(true));
-            }, 2000);
+            }, 1000);
         }
 
         return () => {
@@ -383,13 +488,23 @@ export default function HomeScreen() {
                 {/* Posts Section */}
                 <View style={styles.postsSection}>
                  
-                    {POSTS_DATA.map((post) => (
-                        <PostCard
-                            key={post.id}
-                            post={post}
-                            onPress={() => handlePostPress(post)}
-                        />
-                    ))}
+                    {POSTS_DATA.map((post) => {
+                        if (post.type === 'suggestions') {
+                            return (
+                                <SuggestionsCard 
+                                    key={post.id} 
+                                    item={post} 
+                                />
+                            );
+                        }
+                        return (
+                            <PostCard
+                                key={post.id}
+                                post={post}
+                                onPress={() => handlePostPress(post)}
+                            />
+                        );
+                    })}
                 </View>
             </ScrollView>
 
@@ -504,5 +619,73 @@ const styles = StyleSheet.create({
     scrollContainer: { 
         flex: 1,
         paddingTop: 100, // Add padding to account for sticky header height
+    },
+    
+    // Suggestions styles
+    suggestionsContainer: {
+        marginHorizontal: 20,
+        marginBottom: 20,
+    },
+    suggestionsTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: 'white',
+        marginBottom: 12,
+    },
+    suggestionsScrollContent: {
+        paddingRight: 20,
+    },
+    suggestionCard: {
+        alignItems: 'center',
+        marginRight: 15,
+        width: 80,
+    },
+    suggestionImage: {
+        width: 80,
+        height: 140,
+        borderRadius: 20,
+        marginBottom: 8,
+    },
+    suggestionName: {
+        fontSize: 14,
+        color: 'white',
+        textAlign: 'center',
+        fontWeight: '600',
+    },
+    
+    // User Info Overlay styles
+    userInfoOverlay: {
+        position: 'absolute',
+        bottom: 15,
+        left: 15,
+        right: 15,
+        zIndex: 10,
+    },
+    userInfoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    userAvatar: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: 'white',
+    },
+    userDetails: {
+        flex: 1,
+    },
+    userName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: 'white',
+        marginBottom: 2,
+    },
+    userTime: {
+        fontSize: 12,
+        color: 'rgba(255, 255, 255, 0.8)',
     },
 });

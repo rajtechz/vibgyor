@@ -90,7 +90,7 @@ const PostCard = ({ author, time, content, likes, comments }) => (
           <Text style={styles.authorInitial}>{author.charAt(0)}</Text>
         </View>
         <View>
-          <Text style={styles.authorName}>{author}</Text>
+          <Text style={styles.authorName}>{author} </Text>
           <Text style={styles.postTime}>{time}</Text>
         </View>
       </View>

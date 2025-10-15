@@ -46,7 +46,115 @@ import {
   DeleteIcon,
   CloseButtonIcon,
 } from '../../../components/icons/SvgIcons';
+import { Modal } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
+// Warning Icon Component
+const WarningIcon = ({ width = 40, height = 40, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 40 40" fill="none">
+    <Path
+      d="M20 3.33333L35 33.3333H5L20 3.33333Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M20 15V20"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M20 25H20.0167"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Close X Icon Component
+const CloseXIcon = ({ width = 20, height = 20, color = '#8A52F3' }) => (
+  <Svg width={width} height={height} viewBox="0 0 20 20" fill="none">
+    <Path
+      d="M15 5L5 15M5 5L15 15"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Location Icon for Attachment Menu
+const LocationAttachmentIcon = ({ width = 20, height = 20, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 20 20" fill="none">
+    <Path
+      d="M17.5 8.33333C17.5 14.1667 10 19.1667 10 19.1667C10 19.1667 2.5 14.1667 2.5 8.33333C2.5 6.3442 3.29018 4.43655 4.6967 3.03003C6.10322 1.62351 8.01088 0.833333 10 0.833333C11.9891 0.833333 13.8968 1.62351 15.3033 3.03003C16.7098 4.43655 17.5 6.3442 17.5 8.33333Z"
+      stroke={color}
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10 10.8333C11.3807 10.8333 12.5 9.71404 12.5 8.33333C12.5 6.95262 11.3807 5.83333 10 5.83333C8.61929 5.83333 7.5 6.95262 7.5 8.33333C7.5 9.71404 8.61929 10.8333 10 10.8333Z"
+      stroke={color}
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Image Icon for Attachment Menu
+const ImageAttachmentIcon = ({ width = 20, height = 20, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 20 20" fill="none">
+    <Path
+      d="M2.5 6.66667C2.5 5.19391 3.69391 4 5.16667 4H14.8333C16.3061 4 17.5 5.19391 17.5 6.66667V13.3333C17.5 14.8061 16.3061 16 14.8333 16H5.16667C3.69391 16 2.5 14.8061 2.5 13.3333V6.66667Z"
+      stroke={color}
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M7.5 8.33333C8.19036 8.33333 8.75 7.77369 8.75 7.08333C8.75 6.39298 8.19036 5.83333 7.5 5.83333C6.80964 5.83333 6.25 6.39298 6.25 7.08333C6.25 7.77369 6.80964 8.33333 7.5 8.33333Z"
+      stroke={color}
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M17.5 12.5L13.75 8.75L10 12.5L6.25 8.75L2.5 12.5"
+      stroke={color}
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// One View Icon for Attachment Menu
+const OneViewIcon = ({ width = 20, height = 20, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 20 20" fill="none">
+    <Path
+      d="M10 3.33333C5.83333 3.33333 2.275 6.09167 1.25 10C2.275 13.9083 5.83333 16.6667 10 16.6667C14.1667 16.6667 17.725 13.9083 18.75 10C17.725 6.09167 14.1667 3.33333 10 3.33333Z"
+      stroke={color}
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10 12.5C11.3807 12.5 12.5 11.3807 12.5 10C12.5 8.61929 11.3807 7.5 10 7.5C8.61929 7.5 7.5 8.61929 7.5 10C7.5 11.3807 8.61929 12.5 10 12.5Z"
+      stroke={color}
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
 
 // Message Bubble Component
 const MessageBubble = ({ message, isUser, time, isRead, readTime }) => (
@@ -86,6 +194,9 @@ const ChatScreen = () => {
   const [menuAnim] = useState(new Animated.Value(300));
   const [callButtonScale] = useState(new Animated.Value(1));
   const [videoButtonScale] = useState(new Animated.Value(1));
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [attachmentMenuAnim] = useState(new Animated.Value(0));
 
   // Sound effects
   const [sendSound, setSendSound] = useState(null);
@@ -352,6 +463,22 @@ const ChatScreen = () => {
   };
 
   const handleSendMessage = () => {
+    // Show location modal instead of sending message
+    setShowLocationModal(true);
+  };
+
+  const handleLocationModalClose = () => {
+    setShowLocationModal(false);
+  };
+
+  const handleLocationUndo = () => {
+    setShowLocationModal(false);
+  };
+
+  const handleLocationSend = () => {
+    setShowLocationModal(false);
+    
+    // Send the actual message after confirmation
     if (message.trim()) {
       const newMessage = {
         id: Date.now(),
@@ -401,6 +528,59 @@ const ChatScreen = () => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }, 100);
       }, 1000);
+    }
+  };
+
+  const handleAttachmentToggle = () => {
+    if (showAttachmentMenu) {
+      // Close menu
+      Animated.timing(attachmentMenuAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowAttachmentMenu(false);
+      });
+    } else {
+      // Open menu
+      setShowAttachmentMenu(true);
+      Animated.timing(attachmentMenuAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
+  const handleAttachmentClose = () => {
+    Animated.timing(attachmentMenuAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowAttachmentMenu(false);
+    });
+  };
+
+  const handleAttachmentOption = (option) => {
+    console.log('Attachment option selected:', option);
+    handleAttachmentClose();
+    
+    // Handle different attachment options
+    switch (option) {
+      case 'location':
+        setShowLocationModal(true);
+        break;
+      case 'image':
+        // Handle image selection
+        console.log('Image selection');
+        break;
+      case 'oneview':
+        // Handle one view
+        console.log('One view selected');
+        break;
+      default:
+        break;
     }
   };
 
@@ -602,7 +782,10 @@ const ChatScreen = () => {
                   <TouchableOpacity style={styles.inputActionButton}>
                     <EmojiIcon width={20} height={21} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.inputActionButton}>
+                  <TouchableOpacity 
+                    style={styles.inputActionButton}
+                    onPress={handleAttachmentToggle}
+                  >
                     <PinIcon width={19} height={21} />
                   </TouchableOpacity>
                     </View>
@@ -684,6 +867,126 @@ const ChatScreen = () => {
             </Animated.View>
           </View>
         )}
+
+        {/* Attachment Menu */}
+        {showAttachmentMenu && (
+          <View style={styles.attachmentMenuOverlay}>
+            <TouchableOpacity 
+              style={styles.attachmentMenuBackdrop} 
+              onPress={handleAttachmentClose}
+              activeOpacity={1}
+            />
+            <Animated.View 
+              style={[
+                styles.attachmentMenu,
+                {
+                  opacity: attachmentMenuAnim,
+                  transform: [
+                    {
+                      translateY: attachmentMenuAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                    {
+                      scale: attachmentMenuAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.8, 1],
+                      }),
+                    },
+                  ],
+                }
+              ]}
+            >
+              <View style={styles.attachmentMenuContent}>
+                <TouchableOpacity 
+                  style={styles.attachmentMenuItem}
+                  onPress={() => handleAttachmentOption('location')}
+                >
+                  <LocationAttachmentIcon width={20} height={20} color="white" />
+                  <Text style={styles.attachmentMenuText}>Location</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.attachmentMenuItem}
+                  onPress={() => handleAttachmentOption('image')}
+                >
+                  <ImageAttachmentIcon width={20} height={20} color="white" />
+                  <Text style={styles.attachmentMenuText}>Image</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.attachmentMenuItem}
+                  onPress={() => handleAttachmentOption('oneview')}
+                >
+                  <OneViewIcon width={20} height={20} color="white" />
+                  <Text style={styles.attachmentMenuText}>One View</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        )}
+
+        {/* Location Sharing Modal */}
+        <Modal
+          visible={showLocationModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleLocationModalClose}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <LinearGradient
+                colors={['#8A52F3', '#C53E8D']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.modalGradient}
+              >
+                {/* Close Button */}
+                <TouchableOpacity 
+                  style={styles.modalCloseButton}
+                  onPress={handleLocationModalClose}
+                >
+                  <CloseXIcon width={20} height={20} color="#8A52F3" />
+                </TouchableOpacity>
+
+                {/* Warning Icon */}
+                <View style={styles.warningIconContainer}>
+                  <WarningIcon width={60} height={60} color="white" />
+                </View>
+
+                {/* Modal Text */}
+                <Text style={styles.modalText}>
+                  Are You Sure! About Sharing Your Location
+                </Text>
+
+                {/* Action Buttons */}
+                <View style={styles.modalButtonsContainer}>
+                  <TouchableOpacity 
+                    style={styles.undoButton}
+                    onPress={handleLocationUndo}
+                  >
+                    <Text style={styles.undoButtonText}>Undo</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.sendButton}
+                    onPress={handleLocationSend}
+                  >
+                    <LinearGradient
+                      colors={['#C53E8D', '#8A52F3']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.sendButtonGradient}
+                    >
+                      <Text style={styles.sendButtonText}>Send</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+          </View>
+        </Modal>
       </CommonBackground>
     </View>
   );
@@ -1005,6 +1308,130 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     flex: 1,
     marginLeft:10
+  },
+  // Location Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 350,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  modalGradient: {
+    padding: 30,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  warningIconContainer: {
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  modalText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  modalButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 15,
+  },
+  undoButton: {
+    flex: 1,
+    backgroundColor: '#8A52F3',
+    borderRadius: 25,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  undoButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  sendButton: {
+    flex: 1,
+    borderRadius: 25,
+    overflow: 'hidden',
+  },
+  sendButtonGradient: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  sendButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Attachment Menu Styles
+  attachmentMenuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+  },
+  attachmentMenuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+  },
+  attachmentMenu: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    backgroundColor: 'rgba(139, 69, 19, 0.9)',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  attachmentMenuContent: {
+    paddingVertical: 4,
+  },
+  attachmentMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  attachmentMenuText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 12,
   },
 });
 
