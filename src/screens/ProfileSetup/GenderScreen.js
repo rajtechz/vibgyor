@@ -6,7 +6,6 @@ import Svg, { Path } from 'react-native-svg';
 import CustomButton from '../../components/common/CustomButton';
 import ErrorModal from '../../components/common/ErrorModal';
 import CommonBackground from '../../components/common/CommonBackground';
-import { fonts } from '../../styles/typography';
 
 // Back Icon Component
 const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
@@ -107,7 +106,7 @@ function GenderScreen({ navigation }) {
                     style={styles.gradientBorder}
                   >
                     <View style={styles.optionContainerInner}>
-                      <Text style={styles.optionText}>{gender}</Text>
+                      <Text style={styles.selectedOptionText}>{gender}</Text>
                     </View>
                   </LinearGradient>
                 ) : (
@@ -159,7 +158,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontFamily: fonts.weights.bold,
+    fontFamily: 'Lexend-Bold',
     color: 'white',
     textAlign: 'center',
     marginBottom: 10,
@@ -167,7 +166,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    fontFamily: fonts.weights.regular,
+    fontFamily: 'Lexend-Regular',
     color: '#B0B0B0',
     textAlign: 'center',
     marginBottom: 40,
@@ -190,7 +189,7 @@ const styles = StyleSheet.create({
 
   selectedText: {
     fontSize: 16,
-    fontFamily: fonts.weights.semibold,
+    fontFamily: 'Lexend-SemiBold',
     color: 'white',
     textAlign: 'center',
   },
@@ -215,21 +214,26 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 32,
-    backgroundColor: '#03000C', // inner background
+    backgroundColor: '#03000C',
     alignItems: 'center',
   },
   optionContainer: {
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: '#1B1142',
+   
     alignItems: 'center',
   },
   optionText: {
     fontSize: 16,
-    fontFamily: fonts.weights.semibold,
+    fontFamily: 'Lexend-SemiBold',
+    color: '#B783EB',
+    textAlign: 'center',
+  },
+  selectedOptionText: {
+    fontSize: 16,
+    fontFamily: 'Lexend-SemiBold',
     color: 'white',
     textAlign: 'center',
   },

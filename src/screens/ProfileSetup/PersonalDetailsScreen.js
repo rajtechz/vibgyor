@@ -357,6 +357,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
     marginTop: 20,
+    fontFamily: 'Lexend-Bold',
   },
   description: {
     fontSize: 16,
@@ -364,6 +365,7 @@ const styles = StyleSheet.create({
     color: '#B0B0B0',
     textAlign: 'center',
     marginBottom: 20,
+    fontFamily: 'Lexend-Regular',
   },
   profileImageContainer: {
     alignItems: 'center',
@@ -396,6 +398,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
     borderWidth: 0,
+    fontFamily: 'Lexend-Regular',
   },
   emailInputContainer: {
     flexDirection: 'row',
@@ -410,6 +413,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
     borderWidth: 0,
+    fontFamily: 'Lexend-Regular',
     // paddingRight: 10,
   },
   verifyButton: {
@@ -429,6 +433,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
     textAlign: 'center',
+    fontFamily: 'Lexend-SemiBold',
   },
   dobContainer: {
     flexDirection: 'row',
@@ -455,6 +460,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
+    fontFamily: 'Lexend-Regular',
   },
   ageBadgeContainer: {
     width: 50,
@@ -478,6 +484,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '600',
+    fontFamily: 'Lexend-SemiBold',
   },
   buttonContainer: {
     marginTop: 5,

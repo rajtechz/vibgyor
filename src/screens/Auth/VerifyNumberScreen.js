@@ -1,10 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, StatusBar, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, StatusBar, ScrollView, Alert } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, { Path, Rect, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import CustomButton from '../../components/common/CustomButton';
 import CommonBackground from '../../components/common/CommonBackground';
+import { verifyOTP, clearErrors, selectOTPState, selectPhoneNumber, selectIsAuthenticated, setTokens } from '../../redux/slices/authSlice';
+import { authAPI } from '../../api/authAPI';
 
 // Back Icon Component
 const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
@@ -81,11 +85,63 @@ const OTPInput = ({ value, onChangeText, onKeyPress, inputRef, isFilled }) => (
   </View>
 );
 
-function VerifyNumberScreen({ navigation }) {
+function VerifyNumberScreen() {
+  const navigation = useNavigation();
+  const dispatch = useDispatch();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const inputRefs = useRef([]);
+
+  // Redux selectors
+  const otpState = useSelector(selectOTPState);
+  const phoneNumber = useSelector(selectPhoneNumber);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  
+  // DEBUG: Get auth state to verify tokens are stored
+  const authState = useSelector((state) => state.auth);
+  console.log('🔍 DEBUG: Current Redux Auth State:', {
+    accessToken: authState.accessToken,
+    refreshToken: authState.refreshToken,
+    isAuthenticated: authState.isAuthenticated,
+    user: authState.user
+  });
+
+  // DEBUG: Monitor Redux state changes
+  useEffect(() => {
+    console.log('🔍 DEBUG: Redux Auth State Changed:', {
+      accessToken: authState.accessToken,
+      refreshToken: authState.refreshToken,
+      isAuthenticated: authState.isAuthenticated,
+      user: authState.user
+    });
+    
+    if (authState.accessToken && authState.refreshToken) {
+      console.log('✅ DEBUG: Tokens are now stored in Redux!');
+      console.log('✅ DEBUG: Access Token Length:', authState.accessToken.length);
+      console.log('✅ DEBUG: Refresh Token Length:', authState.refreshToken.length);
+    }
+  }, [authState.accessToken, authState.refreshToken, authState.isAuthenticated, authState.user]);
+
+  // Handle successful OTP verification
+  useEffect(() => {
+    if (otpState.otpVerified && !otpState.isVerifyingOTP) {
+      // Navigate to next screen after OTP verification
+      navigation.navigate('VerifySuccess');
+    }
+  }, [otpState.otpVerified, otpState.isVerifyingOTP, navigation]);
+
+  // Handle OTP verification error
+  useEffect(() => {
+    if (otpState.otpError && !otpState.isVerifyingOTP) {
+      Alert.alert('Error', otpState.otpError);
+      dispatch(clearErrors());
+    }
+  }, [otpState.otpError, otpState.isVerifyingOTP, dispatch]);
+
+  
 
   const handleOtpChange = (text, index) => {
     // Only allow single digit or empty string
@@ -136,12 +192,154 @@ function VerifyNumberScreen({ navigation }) {
     return () => clearInterval(interval);
   }, [isTimerActive, timer]);
 
-  const handleResendOtp = () => {
-    if (!isTimerActive) {
-      setTimer(45); // 45 seconds timer
+  // Professional API call for OTP verification
+  const verifyOTPAPI = async (phoneNumber, otp, countryCode) => {
+    try {
+      console.log('🚀 VerifyNumberScreen: Calling authAPI.verifyOTP');
+      console.log('📱 Phone:', phoneNumber);
+      console.log('🔢 OTP:', otp);
+      console.log('🌍 Country:', countryCode);
+      
+      const response = await authAPI.verifyOTP(phoneNumber, otp, countryCode);
+      
+      console.log('📊 VerifyNumberScreen: API Response:', response);
+      
+      if (response.success) {
+        console.log('✅ VerifyNumberScreen: OTP Verified Successfully');
+        return response;
+      } else {
+        console.log('❌ VerifyNumberScreen: API Error:', response.error);
+        throw new Error(response.error || 'Invalid OTP');
+      }
+    } catch (error) {
+      console.error('💥 VerifyNumberScreen: API Error:', error);
+      throw error;
+    }
+  };
+
+  const handleSubmit = async () => {
+    // Clear previous errors
+    setError(null);
+
+    // Validate OTP
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      Alert.alert('Error', 'Please enter the complete 6-digit OTP');
+      return;
+    }
+
+    // Debug phone number
+    console.log('🔍 VerifyNumberScreen: phoneNumber from Redux:', phoneNumber);
+    console.log('🔍 VerifyNumberScreen: phoneNumber type:', typeof phoneNumber);
+    console.log('🔍 VerifyNumberScreen: phoneNumber === null:', phoneNumber === null);
+    console.log('🔍 VerifyNumberScreen: phoneNumber === undefined:', phoneNumber === undefined);
+
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Phone number not found. Please go back and try again.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Use phone number directly from Redux state
+      const phoneNum = phoneNumber.phoneNumber || phoneNumber;
+      const countryCode = phoneNumber.countryCode || '+91';
+      
+      console.log('📱 VerifyNumberScreen: Using phone number:', phoneNum);
+      console.log('🌍 VerifyNumberScreen: Using country code:', countryCode);
+      
+      // Call API directly
+      const result = await verifyOTPAPI(phoneNum, otpString, countryCode);
+      
+      if (result.success) {
+        console.log('✅ OTP Verified Successfully:', result);
+        console.log('🔑 Access Token:', result.data.accessToken);
+        console.log('🔄 Refresh Token:', result.data.refreshToken);
+        console.log('👤 User Data:', result.data.user);
+        
+        // DEBUG: Check if tokens exist in API response
+        console.log('🔍 DEBUG: Checking API response tokens...');
+        console.log('🔍 DEBUG: result.data.accessToken exists:', !!result.data.accessToken);
+        console.log('🔍 DEBUG: result.data.refreshToken exists:', !!result.data.refreshToken);
+        console.log('🔍 DEBUG: result.data.user exists:', !!result.data.user);
+        
+        // DEBUG: Log actual token values
+        console.log('🔍 DEBUG: Full API Response Data:', JSON.stringify(result.data, null, 2));
+        console.log('🔍 DEBUG: Access Token Value:', result.data.accessToken);
+        console.log('🔍 DEBUG: Refresh Token Value:', result.data.refreshToken);
+        console.log('🔍 DEBUG: User Object:', JSON.stringify(result.data.user, null, 2));
+        
+        // Save tokens and user data to Redux
+        console.log('💾 Redux: Dispatching setTokens...');
+        console.log('💾 Redux: Payload being sent to Redux:', {
+          accessToken: result.data.accessToken,
+          refreshToken: result.data.refreshToken,
+          user: result.data.user
+        });
+        
+        dispatch(setTokens({
+          accessToken: result.data.accessToken,
+          refreshToken: result.data.refreshToken,
+          user: result.data.user
+        }));
+        
+        console.log('💾 Redux: setTokens dispatched successfully');
+        
+        // DEBUG: Verify Redux state after dispatch
+        console.log('🔍 DEBUG: Verifying Redux state after dispatch...');
+        console.log('🔍 DEBUG: isAuthenticated should be true now');
+        
+        Alert.alert(
+          'Success',
+          'OTP verified successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('VerifySuccess'),
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('💥 VerifyNumberScreen: Error in handleSubmit:', error);
+      setError(error.message);
+      Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (isTimerActive) return;
+    
+    // Clear previous errors
+    dispatch(clearErrors());
+
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Phone number not found. Please go back and try again.');
+      return;
+    }
+
+    try {
+      // Resend OTP
+      await dispatch(sendOTP({ 
+        phoneNumber: phoneNumber.phoneNumber, 
+        countryCode: phoneNumber.countryCode 
+      }));
+
+      // Reset OTP inputs and start timer
+      setOtp(['', '', '', '', '', '']);
+      setTimer(30);
       setIsTimerActive(true);
-      // Here you can add your resend OTP logic
-      console.log('Resending OTP...');
+      
+      // Focus on first input
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
+    } catch (error) {
+      console.error('Error resending OTP:', error);
+      Alert.alert('Error', 'Failed to resend OTP. Please try again.');
     }
   };
 
@@ -189,9 +387,10 @@ function VerifyNumberScreen({ navigation }) {
         </View>
         
         <CustomButton
-          title="Submit"
-          onPress={() => navigation.navigate('VerifySuccess')}
+          title={isLoading ? "Verifying..." : "Submit"}
+          onPress={handleSubmit}
           style={styles.submitButton}
+          disabled={isLoading}
         />
         
         <TouchableOpacity 
@@ -302,7 +501,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-
     fontSize: 16,
     color: '#B0B0B0',
     textAlign: 'center',
@@ -311,6 +509,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     maxWidth: 280,
     flexWrap: 'wrap',
+    fontFamily: 'Lexend-Regular',
+    fontWeight: '400',
   },
   otpContainer: {
     flexDirection: 'row',

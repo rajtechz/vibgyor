@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Statu
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 import { VerifiedBadge, AccountVerifyBadge, OptionsMenu, PostVibeText, PostVibeIcon, HamburgerIcon } from '../../../components/icons/SvgIcons';
 import VerifyModal from '../../../components/common/VerifyModal';
 import ModeSwitchHeader from '../../../components/common/ModeSwitchHeader';
@@ -246,60 +247,65 @@ export default function HomeScreen() {
         setShowVerifyModal(false);
     };
 
-    const handlePostPress = (post) => {
-        console.log('Post pressed:', post.id);
-        
-        // Create user data mapping for all posts
-        const userDataMap = {
-            'Emma Wilson': {
-                username: 'Emma_Wilson',
-                fullName: 'Emma Wilson',
-                gender: 'Female (She/her)',
-                bio: 'Love music, cooking, swimming, going out, travelling etc. Wanna be friends??',
-                following: '15K',
-                followers: '200K',
-                isVerified: true,
-                avatar: require('../../../assets/DatingProfileImage/Match1.png'),
-            },
-            'Alex Chen': {
-                username: 'Alex_Chen',
-                fullName: 'Alex Chen',
-                gender: 'Male (He/him)',
-                bio: 'Creative developer & designer. Always exploring new ideas! 💻',
-                following: '8K',
-                followers: '45K',
-                isVerified: false,
-                avatar: require('../../../assets/DatingProfileImage/Match2.png'),
-            },
-            'Sarah Johnson': {
-                username: 'Sarah_Johnson',
-                fullName: 'Sarah Johnson',
-                gender: 'Female (She/her)',
-                bio: 'Photographer & Travel enthusiast. Love capturing moments! 📸',
-                following: '12K',
-                followers: '67K',
-                isVerified: true,
-                avatar: require('../../../assets/DatingProfileImage/Match3.png'),
-            },
-            'Mike Rodriguez': {
-                username: 'Mike_Rodriguez',
-                fullName: 'Mike Rodriguez',
-                gender: 'Male (He/him)',
-                bio: 'Coffee lover & Developer. Always coding something new! ☕',
-                following: '6K',
-                followers: '28K',
-                isVerified: false,
-                avatar: require('../../../assets/DatingProfileImage/Match4.png'),
-            },
-        };
-
-        // Navigate to OtherUserProfile for any post
-        const userData = userDataMap[post.user.name];
-        if (userData) {
-            console.log(`${post.user.name} post pressed - navigating to OtherUserProfile`);
-            navigation.navigate('OtherUserProfile', { userData });
-        }
+  const handlePostPress = (post) => {
+    console.log('Post pressed:', post.id);
+    
+    // Create user data mapping for all posts
+    const userDataMap = {
+      'Emma Wilson': {
+        username: 'Emma_Wilson',
+        fullName: 'Emma Wilson',
+        gender: 'Female (She/her)',
+        bio: 'Love music, cooking, swimming, going out, travelling etc. Wanna be friends??',
+        following: '15K',
+        followers: '200K',
+        isVerified: true,
+        avatar: require('../../../assets/DatingProfileImage/Match1.png'),
+      },
+      'Alex Chen': {
+        username: 'Alex_Chen',
+        fullName: 'Alex Chen',
+        gender: 'Male (He/him)',
+        bio: 'Creative developer & designer. Always exploring new ideas! 💻',
+        following: '8K',
+        followers: '45K',
+        isVerified: false,
+        avatar: require('../../../assets/DatingProfileImage/Match2.png'),
+      },
+      'Sarah Johnson': {
+        username: 'Sarah_Johnson',
+        fullName: 'Sarah Johnson',
+        gender: 'Female (She/her)',
+        bio: 'Photographer & Travel enthusiast. Love capturing moments! 📸',
+        following: '12K',
+        followers: '67K',
+        isVerified: true,
+        avatar: require('../../../assets/DatingProfileImage/Match3.png'),
+      },
+      'Mike Rodriguez': {
+        username: 'Mike_Rodriguez',
+        fullName: 'Mike Rodriguez',
+        gender: 'Male (He/him)',
+        bio: 'Coffee lover & Developer. Always coding something new! ☕',
+        following: '6K',
+        followers: '28K',
+        isVerified: false,
+        avatar: require('../../../assets/DatingProfileImage/Match4.png'),
+      },
     };
+
+    // Navigate to OtherUserProfile for any post
+    const userData = userDataMap[post.user.name];
+    if (userData) {
+      console.log(`${post.user.name} post pressed - navigating to OtherUserProfile`);
+      navigation.navigate('OtherUserProfile', { userData });
+    }
+  };
+
+  const handleCreatePost = () => {
+    console.log('Create Post pressed - navigating to PostCreation');
+    navigation.navigate('PostCreation');
+  };
 
     const handleCarouselCardPress = (item) => {
         console.log('Carousel card pressed:', item.id);
@@ -523,6 +529,22 @@ export default function HomeScreen() {
 
             {/* Notification Bar */}
             <NotificationBar navigation={navigation} />
+
+            {/* Floating Action Button */}
+            <TouchableOpacity 
+                style={styles.fab}
+                onPress={handleCreatePost}
+                activeOpacity={0.8}
+            >
+                <LinearGradient
+                    colors={['#C53E8D', '#8A52F3']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.fabGradient}
+                >
+                    <Text style={styles.fabText}>+</Text>
+                </LinearGradient>
+            </TouchableOpacity>
         </View>
     );
 }
@@ -687,5 +709,35 @@ const styles = StyleSheet.create({
     userTime: {
         fontSize: 12,
         color: 'rgba(255, 255, 255, 0.8)',
+    },
+    
+    // Floating Action Button styles
+    fab: {
+        position: 'absolute',
+        bottom: 100,
+        right: 20,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        shadowColor: '#C53E8D',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    fabGradient: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fabText: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: 'white',
     },
 });

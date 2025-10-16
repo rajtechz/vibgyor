@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
 import CommonBackground from '../../components/common/CommonBackground';
+import CustomButton from '../../components/common/CustomButton';
 
 // Back Icon Component
 const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
@@ -99,6 +100,7 @@ function PreferencesScreen({ navigation }) {
           </LinearGradient>
 
           {/* Secondary Language */}
+          <View style={styles.secondaryLanguageContainer}>
           <LinearGradient
             colors={['#C53E8D', '#8A52F3']}
             start={{ x: 0, y: 0 }}
@@ -110,19 +112,15 @@ function PreferencesScreen({ navigation }) {
               <DropdownArrow width={20} height={20} color="white" />
             </TouchableOpacity>
           </LinearGradient>
+          </View>
         </View>
 
         {/* Continue Button */}
-        <LinearGradient
-          colors={['#C53E8D', '#8A52F3']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.continueButtonGradient}
-        >
-          <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-            <Text style={styles.continueButtonText}>Continue</Text>
-          </TouchableOpacity>
-        </LinearGradient>
+        <CustomButton
+          title="Continue"
+          onPress={handleContinue}
+          style={styles.continueButton}
+        />
       </ScrollView>
     </CommonBackground>
   );
@@ -143,20 +141,22 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 36,
+    fontWeight: '600',
     color: 'white',
     textAlign: 'center',
     marginBottom: 20,
     marginTop: 20,
+    fontFamily: 'Lexend-SemiBold',
   },
   description: {
     fontSize: 16,
-    color: 'white',
+    color: '#FFFFFF80',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 40,
     paddingHorizontal: 10,
+    fontFamily: 'Lexend-Regular',
   },
   sectionContainer: {
     marginBottom: 30,
@@ -178,8 +178,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#03000C',
     borderRadius: 28,
     paddingHorizontal: 24,
-    paddingVertical: 17,
-    height: 60,
+    paddingVertical: 12,
+    height: 48,
   },
   dropdownText: {
     fontSize: 16,
@@ -193,32 +193,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#03000C',
     borderRadius: 28,
     paddingHorizontal: 24,
-    paddingVertical: 17,
-    height: 60,
+    paddingVertical: 12,
+    height: 48,
   },
   secondaryDropdownText: {
     fontSize: 16,
     color: '#B0B0B0',
     fontWeight: '500',
   },
-  continueButtonGradient: {
-    borderRadius: 30,
-    marginTop: 40,
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 300,
+  secondaryLanguageContainer: {
+    marginTop: 12,
   },
   continueButton: {
-    borderRadius: 28,
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    alignItems: 'center',
-    height: 60,
-  },
-  continueButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
+    marginTop: 100,
+    alignSelf: 'center',
+    width: '80%',
+    maxWidth: 300,
   },
 });
 
