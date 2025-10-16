@@ -9,6 +9,7 @@ import UploadIDScreen from '../screens/ProfileSetup/UploadIDScreen';
 import LocationScreen from '../screens/ProfileSetup/LocationScreen';
 import PreferencesScreen from '../screens/ProfileSetup/PreferencesScreen';
 import SwitchProfilesScreen from '../screens/ProfileSetup/SwitchProfilesScreen';
+import VerifyNumberScreen from '../screens/Auth/VerifyNumberScreen';
 
 const Stack = createStackNavigator();
 
@@ -94,6 +95,10 @@ function ProfileSetupNavigator() {
       <Stack.Screen 
         name="SwitchProfiles" 
         component={SwitchProfilesScreen} 
+      />
+      <Stack.Screen 
+        name="VerifyNumber" 
+        component={VerifyNumberScreen} 
       />
     </Stack.Navigator>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, StatusBar, ScrollView, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, { Path, Rect, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
@@ -87,6 +87,7 @@ const OTPInput = ({ value, onChangeText, onKeyPress, inputRef, isFilled }) => (
 
 function VerifyNumberScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const dispatch = useDispatch();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(0);
@@ -94,6 +95,11 @@ function VerifyNumberScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const inputRefs = useRef([]);
+
+  // Get route params for email verification
+  const { email, isEmailVerification } = route.params || {};
+  
+  console.log('🔍 DEBUG: VerifyNumberScreen route params:', { email, isEmailVerification });
 
   // Redux selectors
   const otpState = useSelector(selectOTPState);
@@ -228,78 +234,194 @@ function VerifyNumberScreen() {
       return;
     }
 
-    // Debug phone number
-    console.log('🔍 VerifyNumberScreen: phoneNumber from Redux:', phoneNumber);
-    console.log('🔍 VerifyNumberScreen: phoneNumber type:', typeof phoneNumber);
-    console.log('🔍 VerifyNumberScreen: phoneNumber === null:', phoneNumber === null);
-    console.log('🔍 VerifyNumberScreen: phoneNumber === undefined:', phoneNumber === undefined);
-
-    if (!phoneNumber) {
-      Alert.alert('Error', 'Phone number not found. Please go back and try again.');
-      return;
-    }
-
     try {
       setIsLoading(true);
       
-      // Use phone number directly from Redux state
-      const phoneNum = phoneNumber.phoneNumber || phoneNumber;
-      const countryCode = phoneNumber.countryCode || '+91';
-      
-      console.log('📱 VerifyNumberScreen: Using phone number:', phoneNum);
-      console.log('🌍 VerifyNumberScreen: Using country code:', countryCode);
-      
-      // Call API directly
-      const result = await verifyOTPAPI(phoneNum, otpString, countryCode);
-      
-      if (result.success) {
-        console.log('✅ OTP Verified Successfully:', result);
-        console.log('🔑 Access Token:', result.data.accessToken);
-        console.log('🔄 Refresh Token:', result.data.refreshToken);
-        console.log('👤 User Data:', result.data.user);
+      if (isEmailVerification) {
+        // Handle Email OTP Verification
+        console.log('📧 DEBUG: Email OTP verification process');
+        console.log('📧 DEBUG: Email:', email);
+        console.log('🔢 DEBUG: OTP:', otpString);
         
-        // DEBUG: Check if tokens exist in API response
-        console.log('🔍 DEBUG: Checking API response tokens...');
-        console.log('🔍 DEBUG: result.data.accessToken exists:', !!result.data.accessToken);
-        console.log('🔍 DEBUG: result.data.refreshToken exists:', !!result.data.refreshToken);
-        console.log('🔍 DEBUG: result.data.user exists:', !!result.data.user);
+        const result = await authAPI.verifyEmailOTP(email, otpString);
         
-        // DEBUG: Log actual token values
-        console.log('🔍 DEBUG: Full API Response Data:', JSON.stringify(result.data, null, 2));
-        console.log('🔍 DEBUG: Access Token Value:', result.data.accessToken);
-        console.log('🔍 DEBUG: Refresh Token Value:', result.data.refreshToken);
-        console.log('🔍 DEBUG: User Object:', JSON.stringify(result.data.user, null, 2));
+        console.log('📊 DEBUG: Email OTP API Response:', result);
         
-        // Save tokens and user data to Redux
-        console.log('💾 Redux: Dispatching setTokens...');
-        console.log('💾 Redux: Payload being sent to Redux:', {
-          accessToken: result.data.accessToken,
-          refreshToken: result.data.refreshToken,
-          user: result.data.user
-        });
+        if (result.success) {
+          console.log('✅ DEBUG: Email OTP verified successfully');
+          console.log('✅ DEBUG: Full result:', JSON.stringify(result, null, 2));
+          
+          Alert.alert(
+            'Success',
+            'Email verified successfully!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  console.log('📧 DEBUG: Navigating back to PersonalDetailsScreen');
+                  // Pass verification success back to PersonalDetailsScreen
+                  navigation.navigate('PersonalDetails', { 
+                    emailVerified: true,
+                    verifiedEmail: email 
+                  });
+                },
+              },
+            ]
+          );
+        } else {
+          console.log('❌ DEBUG: Email OTP verification failed');
+          console.log('❌ DEBUG: Error:', result.error);
+          Alert.alert('Error', result.error || 'Failed to verify email OTP. Please try again.');
+        }
+      } else {
+        // Handle Phone OTP Verification (existing logic)
+        console.log('📱 DEBUG: Phone OTP verification process');
+        console.log('🔍 VerifyNumberScreen: phoneNumber from Redux:', phoneNumber);
+        console.log('🔍 VerifyNumberScreen: phoneNumber type:', typeof phoneNumber);
+        console.log('🔍 VerifyNumberScreen: phoneNumber === null:', phoneNumber === null);
+        console.log('🔍 VerifyNumberScreen: phoneNumber === undefined:', phoneNumber === undefined);
+
+        if (!phoneNumber) {
+          Alert.alert('Error', 'Phone number not found. Please go back and try again.');
+          return;
+        }
         
-        dispatch(setTokens({
-          accessToken: result.data.accessToken,
-          refreshToken: result.data.refreshToken,
-          user: result.data.user
-        }));
+        // Use phone number directly from Redux state
+        const phoneNum = phoneNumber.phoneNumber || phoneNumber;
+        const countryCode = phoneNumber.countryCode || '+91';
         
-        console.log('💾 Redux: setTokens dispatched successfully');
+        console.log('📱 VerifyNumberScreen: Using phone number:', phoneNum);
+        console.log('🌍 VerifyNumberScreen: Using country code:', countryCode);
         
-        // DEBUG: Verify Redux state after dispatch
-        console.log('🔍 DEBUG: Verifying Redux state after dispatch...');
-        console.log('🔍 DEBUG: isAuthenticated should be true now');
+        // Call API directly
+        const result = await verifyOTPAPI(phoneNum, otpString, countryCode);
         
-        Alert.alert(
-          'Success',
-          'OTP verified successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('VerifySuccess'),
-            },
-          ]
-        );
+        if (result.success) {
+          console.log('✅ OTP Verified Successfully:', result);
+          
+          // DEBUG: Check the actual structure of the API response
+          console.log('🔍 DEBUG: Full API Response:', JSON.stringify(result, null, 2));
+          console.log('🔍 DEBUG: result.data structure:', result.data);
+          console.log('🔍 DEBUG: result.data type:', typeof result.data);
+          console.log('🔍 DEBUG: result.data keys:', result.data ? Object.keys(result.data) : 'data is null/undefined');
+          
+          // Check if result.data exists and has the expected structure
+          if (!result.data) {
+            console.log('❌ DEBUG: result.data is null or undefined');
+            Alert.alert('Error', 'Invalid API response structure');
+            return;
+          }
+          
+          // Extract tokens from the correct structure
+          // The API response structure is: { success: true, data: { accessToken, refreshToken, user } }
+          const responseData = result.data;
+          console.log('🔍 DEBUG: responseData structure:', responseData);
+          console.log('🔍 DEBUG: responseData keys:', Object.keys(responseData || {}));
+          
+          // Try different possible structures
+          let accessToken, refreshToken, user;
+          
+          if (responseData.accessToken) {
+            // Direct structure: { accessToken, refreshToken, user }
+            accessToken = responseData.accessToken;
+            refreshToken = responseData.refreshToken;
+            user = responseData.user;
+            console.log('🔍 DEBUG: Using direct structure');
+          } else if (responseData.data && responseData.data.accessToken) {
+            // Nested structure: { data: { accessToken, refreshToken, user } }
+            accessToken = responseData.data.accessToken;
+            refreshToken = responseData.data.refreshToken;
+            user = responseData.data.user;
+            console.log('🔍 DEBUG: Using nested structure');
+          } else {
+            // Try to find tokens in any nested object
+            console.log('🔍 DEBUG: Searching for tokens in nested structure...');
+            const searchForTokens = (obj, depth = 0) => {
+              if (depth > 3) return null; // Prevent infinite recursion
+              if (!obj || typeof obj !== 'object') return null;
+              
+              if (obj.accessToken) {
+                return {
+                  accessToken: obj.accessToken,
+                  refreshToken: obj.refreshToken,
+                  user: obj.user
+                };
+              }
+              
+              for (const key in obj) {
+                if (typeof obj[key] === 'object') {
+                  const found = searchForTokens(obj[key], depth + 1);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            
+            const foundTokens = searchForTokens(responseData);
+            if (foundTokens) {
+              accessToken = foundTokens.accessToken;
+              refreshToken = foundTokens.refreshToken;
+              user = foundTokens.user;
+              console.log('🔍 DEBUG: Found tokens in nested structure');
+            }
+          }
+          
+          console.log('🔑 Access Token:', accessToken);
+          console.log('🔄 Refresh Token:', refreshToken);
+          console.log('👤 User Data:', user);
+          
+          // DEBUG: Check if tokens exist in API response
+          console.log('🔍 DEBUG: Checking API response tokens...');
+          console.log('🔍 DEBUG: accessToken exists:', !!accessToken);
+          console.log('🔍 DEBUG: refreshToken exists:', !!refreshToken);
+          console.log('🔍 DEBUG: user exists:', !!user);
+          
+          // DEBUG: Log actual token values
+          console.log('🔍 DEBUG: Access Token Value:', accessToken);
+          console.log('🔍 DEBUG: Refresh Token Value:', refreshToken);
+          console.log('🔍 DEBUG: User Object:', JSON.stringify(user, null, 2));
+          
+          // Validate tokens before saving
+          if (!accessToken || !refreshToken) {
+            console.log('❌ DEBUG: Missing tokens in API response');
+            console.log('❌ DEBUG: accessToken:', accessToken);
+            console.log('❌ DEBUG: refreshToken:', refreshToken);
+            console.log('❌ DEBUG: Full responseData for debugging:', JSON.stringify(responseData, null, 2));
+            Alert.alert('Error', 'Invalid tokens received from server. Please check console logs for details.');
+            return;
+          }
+          
+          // Save tokens and user data to Redux
+          console.log('💾 Redux: Dispatching setTokens...');
+          console.log('💾 Redux: Payload being sent to Redux:', {
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            user: user
+          });
+          
+          dispatch(setTokens({
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            user: user
+          }));
+          
+          console.log('💾 Redux: setTokens dispatched successfully');
+          
+          // DEBUG: Verify Redux state after dispatch
+          console.log('🔍 DEBUG: Verifying Redux state after dispatch...');
+          console.log('🔍 DEBUG: isAuthenticated should be true now');
+          
+          Alert.alert(
+            'Success',
+            'OTP verified successfully!',
+            [
+              {
+                text: 'OK',
+                onPress: () => navigation.navigate('VerifySuccess'),
+              },
+            ]
+          );
+        }
       }
     } catch (error) {
       console.error('💥 VerifyNumberScreen: Error in handleSubmit:', error);
@@ -310,36 +432,124 @@ function VerifyNumberScreen() {
     }
   };
 
+  // Professional API call for resending OTP
+  const resendOTPAPI = async (phoneNumber) => {
+    console.log('🔄 DEBUG: resendOTPAPI function called');
+    console.log('📱 DEBUG: Phone number parameter:', phoneNumber);
+    console.log('📱 DEBUG: Phone number type:', typeof phoneNumber);
+    console.log('📱 DEBUG: Phone number length:', phoneNumber?.length);
+    
+    try {
+      console.log('🚀 DEBUG: Calling authAPI.resendOTP...');
+      console.log('🔗 DEBUG: API endpoint: /user/auth/resend-otp');
+      console.log('🌐 DEBUG: Full URL: https://vibgyornode.onrender.com/user/auth/resend-otp');
+      
+      const response = await authAPI.resendOTP(phoneNumber);
+      
+      console.log('📊 DEBUG: Raw API response received');
+      console.log('📊 DEBUG: Response type:', typeof response);
+      console.log('📊 DEBUG: Response keys:', Object.keys(response || {}));
+      console.log('📊 DEBUG: Full response:', JSON.stringify(response, null, 2));
+      
+      if (response.success) {
+        console.log('✅ DEBUG: API call successful');
+        console.log('✅ DEBUG: response.success:', response.success);
+        console.log('✅ DEBUG: response.data:', response.data);
+        console.log('✅ DEBUG: response.message:', response.message);
+        return response;
+      } else {
+        console.log('❌ DEBUG: API call failed');
+        console.log('❌ DEBUG: response.success:', response.success);
+        console.log('❌ DEBUG: response.error:', response.error);
+        console.log('❌ DEBUG: response.message:', response.message);
+        throw new Error(response.error || 'Failed to resend OTP');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in resendOTPAPI');
+      console.error('💥 DEBUG: Error type:', typeof error);
+      console.error('💥 DEBUG: Error name:', error.name);
+      console.error('💥 DEBUG: Error message:', error.message);
+      console.error('💥 DEBUG: Error stack:', error.stack);
+      console.error('💥 DEBUG: Full error object:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+  };
+
   const handleResendOtp = async () => {
-    if (isTimerActive) return;
+    console.log('🔄 DEBUG: handleResendOtp called');
+    console.log('🔄 DEBUG: isTimerActive:', isTimerActive);
+    
+    if (isTimerActive) {
+      console.log('⏰ DEBUG: Timer is active, cannot resend OTP');
+      return;
+    }
     
     // Clear previous errors
     dispatch(clearErrors());
 
+    console.log('🔍 DEBUG: phoneNumber from Redux:', phoneNumber);
+    console.log('🔍 DEBUG: phoneNumber type:', typeof phoneNumber);
+    console.log('🔍 DEBUG: phoneNumber === null:', phoneNumber === null);
+    console.log('🔍 DEBUG: phoneNumber === undefined:', phoneNumber === undefined);
+
     if (!phoneNumber) {
+      console.log('❌ DEBUG: Phone number not found in Redux');
       Alert.alert('Error', 'Phone number not found. Please go back and try again.');
       return;
     }
 
     try {
-      // Resend OTP
-      await dispatch(sendOTP({ 
-        phoneNumber: phoneNumber.phoneNumber, 
-        countryCode: phoneNumber.countryCode 
-      }));
-
-      // Reset OTP inputs and start timer
-      setOtp(['', '', '', '', '', '']);
-      setTimer(30);
-      setIsTimerActive(true);
+      // Get phone number from Redux
+      const phoneNum = phoneNumber.phoneNumber || phoneNumber;
       
-      // Focus on first input
-      setTimeout(() => {
-        inputRefs.current[0]?.focus();
-      }, 100);
+      console.log('🔄 DEBUG: Starting resend OTP process...');
+      console.log('📱 DEBUG: Phone number to use:', phoneNum);
+      console.log('📱 DEBUG: Phone number type:', typeof phoneNum);
+      console.log('📱 DEBUG: Phone number length:', phoneNum?.length);
+      
+      // Call resend OTP API directly
+      console.log('🚀 DEBUG: Calling resendOTPAPI...');
+      const result = await resendOTPAPI(phoneNum);
+      
+      console.log('📊 DEBUG: resendOTPAPI result:', result);
+      console.log('📊 DEBUG: result.success:', result.success);
+      console.log('📊 DEBUG: result.data:', result.data);
+      console.log('📊 DEBUG: result.message:', result.message);
+      
+      if (result.success) {
+        console.log('✅ DEBUG: OTP Resent Successfully!');
+        console.log('✅ DEBUG: Full result object:', JSON.stringify(result, null, 2));
+        
+        // Reset OTP inputs and start timer
+        console.log('🔄 DEBUG: Resetting OTP inputs...');
+        setOtp(['', '', '', '', '', '']);
+        setTimer(30);
+      setIsTimerActive(true);
+        
+        console.log('⏰ DEBUG: Timer started for 30 seconds');
+        console.log('🎯 DEBUG: Setting focus on first input...');
+        
+        // Focus on first input
+        setTimeout(() => {
+          console.log('🎯 DEBUG: Focusing on first input...');
+          inputRefs.current[0]?.focus();
+        }, 100);
+        
+        console.log('✅ DEBUG: Showing success alert...');
+        Alert.alert('Success', 'OTP has been resent successfully!');
+      } else {
+        console.log('❌ DEBUG: Resend OTP failed');
+        console.log('❌ DEBUG: Error message:', result.error);
+        Alert.alert('Error', result.error || 'Failed to resend OTP');
+      }
     } catch (error) {
-      console.error('Error resending OTP:', error);
-      Alert.alert('Error', 'Failed to resend OTP. Please try again.');
+      console.error('💥 DEBUG: Exception in handleResendOtp:', error);
+      console.error('💥 DEBUG: Error type:', typeof error);
+      console.error('💥 DEBUG: Error message:', error.message);
+      console.error('💥 DEBUG: Error stack:', error.stack);
+      console.error('💥 DEBUG: Full error object:', JSON.stringify(error, null, 2));
+      
+      Alert.alert('Error', error.message || 'Failed to resend OTP. Please try again.');
     }
   };
 
@@ -348,6 +558,7 @@ function VerifyNumberScreen() {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
 
   return (
     <CommonBackground style={styles.container}>
@@ -370,8 +581,15 @@ function VerifyNumberScreen() {
           <AppIcon width={50} height={50} />
         </View>
         
-        <Text style={styles.title}>Verify Email OTP</Text>
-        <Text style={styles.subtitle}>Please enter the 6-digit   sent to your Email</Text>
+        <Text style={styles.title}>
+          {isEmailVerification ? 'Verify Email OTP' : 'Verify Phone OTP'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {isEmailVerification 
+            ? `Please enter the 6-digit OTP sent to ${email}` 
+            : 'Please enter the 6-digit OTP sent to your phone'
+          }
+        </Text>
         
         <View style={styles.otpContainer}> 
           {otp.map((digit, index) => (
@@ -385,6 +603,9 @@ function VerifyNumberScreen() {
             />
           ))}
         </View>
+        
+        {/* TEST BUTTON - Remove this after debugging */}
+ 
         
         <CustomButton
           title={isLoading ? "Verifying..." : "Submit"}
@@ -558,6 +779,20 @@ const styles = StyleSheet.create({
   submitButton: {
     width: 212,
     marginBottom: 25,
+  },
+  testButton: {
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignSelf: 'center',
+  },
+  testButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   resendButton: {
     paddingHorizontal: 20,

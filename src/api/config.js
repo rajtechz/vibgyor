@@ -13,6 +13,9 @@ export const API_ENDPOINTS = {
   // Auth endpoints
   SEND_OTP: '/user/auth/send-otp',
   VERIFY_OTP: '/user/auth/verify-otp',
+  RESEND_OTP: '/user/auth/resend-otp',
+  SEND_EMAIL_OTP: '/user/auth/send-email-otp',
+  VERIFY_EMAIL_OTP: '/user/auth/verify-email-otp',
   LOGIN: '/user/auth/login',
   LOGOUT: '/user/auth/logout',
   REFRESH_TOKEN: '/user/auth/refresh-token',
@@ -21,6 +24,7 @@ export const API_ENDPOINTS = {
   GET_PROFILE: '/user/profile',
   UPDATE_PROFILE: '/user/profile',
   UPLOAD_AVATAR: '/user/avatar',
+  UPLOAD_PROFILE_PICTURE: '/user/upload/profile-picture',
   
   // Social endpoints
   GET_POSTS: '/social/posts',

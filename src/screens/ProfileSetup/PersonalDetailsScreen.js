@@ -1,5 +1,5 @@
 // src/screens/ProfileSetup/PersonalDetailsScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, StatusBar, Platform, Alert } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -8,8 +8,13 @@ import ProfileImageUpload from '../../components/common/ProfileImageUpload';
 import ErrorModal from '../../components/common/ErrorModal';
 import CommonBackground from '../../components/common/CommonBackground';
 import { BackIcon, CalendarIcon } from '../../components/icons/SvgIcons';
+import { authAPI } from '../../api/authAPI';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
+import { useSelector, useDispatch } from 'react-redux';
+import { setTokens } from '../../redux/slices/authSlice';
 
 function PersonalDetailsScreen({ navigation }) {
+  const route = useRoute();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -28,6 +33,50 @@ function PersonalDetailsScreen({ navigation }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [emailVerified, setEmailVerified] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Get Redux state for debugging
+  const authState = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  
+  // Debug Redux state
+  useEffect(() => {
+    console.log('📧 DEBUG: PersonalDetailsScreen Redux State:', {
+      accessToken: authState.accessToken ? 'Present' : 'Missing',
+      refreshToken: authState.refreshToken ? 'Present' : 'Missing',
+      isAuthenticated: authState.isAuthenticated,
+      user: authState.user ? 'Present' : 'Missing'
+    });
+    
+    if (authState.accessToken) {
+      console.log('📧 DEBUG: AccessToken length:', authState.accessToken.length);
+      console.log('📧 DEBUG: AccessToken preview:', authState.accessToken.substring(0, 20) + '...');
+    } else {
+      console.log('❌ DEBUG: No access token in Redux state');
+      console.log('❌ DEBUG: Full auth state:', JSON.stringify(authState, null, 2));
+    }
+  }, [authState]);
+
+  // Handle email verification success when returning from VerifyNumberScreen
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('📧 DEBUG: PersonalDetailsScreen focused');
+      console.log('📧 DEBUG: emailVerified state:', emailVerified);
+      
+      // Check if we're returning from email verification
+      const { emailVerified: isVerified, verifiedEmail } = route.params || {};
+      console.log('📧 DEBUG: Route params:', { isVerified, verifiedEmail });
+      
+      if (isVerified && verifiedEmail) {
+        console.log('✅ DEBUG: Email verification successful, updating state');
+        setEmailVerified(true);
+        // Update email if it was verified
+        if (verifiedEmail !== formData.email) {
+          setFormData(prev => ({ ...prev, email: verifiedEmail }));
+        }
+      }
+    }, [emailVerified, route.params, formData.email])
+  );
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -85,8 +134,12 @@ function PersonalDetailsScreen({ navigation }) {
     }
   };
 
-  const handleEmailVerification = () => {
+  const handleEmailVerification = async () => {
+    console.log('📧 DEBUG: handleEmailVerification called');
+    console.log('📧 DEBUG: Email:', formData.email);
+    
     if (!formData.email) {
+      console.log('❌ DEBUG: No email provided');
       showError('Please enter your email address first', 'Email Required');
       return;
     }
@@ -94,22 +147,63 @@ function PersonalDetailsScreen({ navigation }) {
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
+      console.log('❌ DEBUG: Invalid email format');
       showError('Please enter a valid email address', 'Invalid Email');
       return;
     }
 
-    // Simulate email verification process
-    Alert.alert(
-      'Verification Email Sent',
-      'Please check your email and click the verification link to verify your email address.',
-      [
-        {
-          text: 'OK',
-          onPress: () => setEmailVerified(true)
-        }
-      ]
-    );
+    try {
+      setIsLoading(true);
+      console.log('📧 DEBUG: Calling sendEmailOTP API...');
+      
+      // Call Email OTP API
+      const result = await authAPI.sendEmailOTP(formData.email);
+      
+      console.log('📊 DEBUG: Email OTP API Response:', result);
+      
+      if (result.success) {
+        console.log('✅ DEBUG: Email OTP sent successfully');
+        console.log('✅ DEBUG: Full result:', JSON.stringify(result, null, 2));
+        
+        Alert.alert(
+          'Verification Email Sent',
+          'Please check your email and enter the OTP to verify your email address.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('📧 DEBUG: Navigating to VerifyNumberScreen for email OTP');
+                // Navigate to existing VerifyNumberScreen with email context
+                navigation.navigate('VerifyNumber', { 
+                  email: formData.email,
+                  isEmailVerification: true 
+                });
+              }
+            }
+          ]
+        );
+      } else {
+        console.log('❌ DEBUG: Email OTP API failed');
+        console.log('❌ DEBUG: Error:', result.error);
+        showError(result.error || 'Failed to send verification email', 'Email Error');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in handleEmailVerification:', error);
+      console.error('💥 DEBUG: Error type:', typeof error);
+      console.error('💥 DEBUG: Error message:', error.message);
+      showError(error.message || 'Failed to send verification email', 'Email Error');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleEmailVerificationSuccess = () => {
+    console.log('✅ DEBUG: Email verification successful');
+    setEmailVerified(true);
+  };
+
+
+
 
   const handleContinue = () => {
     // Validate form data
@@ -223,6 +317,7 @@ function PersonalDetailsScreen({ navigation }) {
                     style={[styles.verifyButton, emailVerified && styles.verifyButtonVerified]}
                     onPress={handleEmailVerification}
                     activeOpacity={0.8}
+                    disabled={isLoading}
                   >
                     <LinearGradient
                       colors={emailVerified ? ['#4CAF50', '#45A049'] : ['#C53E8D', '#8A52F3']}
@@ -231,7 +326,7 @@ function PersonalDetailsScreen({ navigation }) {
                       end={{x: 1, y: 0}}
                     >
                       <Text style={styles.verifyButtonText}>
-                        {emailVerified ? 'Verified' : 'Verify'}
+                        {isLoading ? 'Sending...' : (emailVerified ? 'Verified' : 'Verify')}
                       </Text>
                     </LinearGradient>
                   </TouchableOpacity>
@@ -304,6 +399,9 @@ function PersonalDetailsScreen({ navigation }) {
         </View>
 
         <View style={styles.buttonContainer}>
+          {/* TEST BUTTON - Remove this after debugging */}
+        
+          
           <CustomButton
             title="Continue"
             onPress={handleContinue}
@@ -493,6 +591,20 @@ const styles = StyleSheet.create({
     width: '70%',
     alignSelf: 'center',
     borderRadius: 35,
+  },
+  testButton: {
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignSelf: 'center',
+  },
+  testButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

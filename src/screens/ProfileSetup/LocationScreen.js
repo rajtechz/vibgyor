@@ -5,11 +5,10 @@
 // src/screens/ProfileSetup/LocationScreen.js
 import React, { useState } from 'react';
 import LinearGradient from 'react-native-linear-gradient';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, StatusBar, Platform, Alert, PermissionsAndroid } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, StatusBar, Platform, Alert, PermissionsAndroid, Image } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Geolocation from '@react-native-community/geolocation';
 import CustomButton from '../../components/common/CustomButton';
-import CommonBackground from '../../components/common/CommonBackground';
 
      
 // Back Icon Component
@@ -25,23 +24,13 @@ const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
   </Svg>
 );
 
-// Location Pin Icon
-const LocationPinIcon = ({ width = 20, height = 20, color = '#8A2BE2' }) => (
-  <Svg width={width} height={height} viewBox="0 0 20 20" fill="none">
-    <Path
-      d="M17.5 8.33333C17.5 14.1667 10 19.1667 10 19.1667C10 19.1667 2.5 14.1667 2.5 8.33333C2.5 6.3442 3.29018 4.43655 4.6967 3.03003C6.10322 1.62351 8.01088 0.833333 10 0.833333C11.9891 0.833333 13.8968 1.62351 15.3033 3.03003C16.7098 4.43655 17.5 6.3442 17.5 8.33333Z"
-      stroke={color}
-      strokeWidth="1.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M10 10.8333C11.3807 10.8333 12.5 9.71404 12.5 8.33333C12.5 6.95262 11.3807 5.83333 10 5.83333C8.61929 5.83333 7.5 6.95262 7.5 8.33333C7.5 9.71404 8.61929 10.8333 10 10.8333Z"
-      stroke={color}
-      strokeWidth="1.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+// Location Pin Icon (using the custom SVG)
+const LocationPinIcon = ({ width = 23, height = 24, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 23 24" fill="none">
+    <Path d="M0 11.5H23V13.5H0V11.5Z" fill={color}/>
+    <Path d="M11.5 0V24H13.5V0H11.5Z" fill={color}/>
+    <Path d="M11.5 4.5C15.6421 4.5 19 7.85786 19 12C19 16.1421 15.6421 19.5 11.5 19.5C7.35786 19.5 4 16.1421 4 12C4 7.85786 7.35786 4.5 11.5 4.5Z" fill="#03000C" stroke={color} strokeWidth="2"/>
+    <Path d="M11.5 9.5C12.3284 9.5 13 10.1716 13 11C13 11.8284 12.3284 12.5 11.5 12.5C10.6716 12.5 10 11.8284 10 11C10 10.1716 10.6716 9.5 11.5 9.5Z" fill={color}/>
   </Svg>
 );
 
@@ -159,26 +148,16 @@ function LocationScreen({ navigation }) {
           (fallbackError) => {
             console.log('Fallback location error:', fallbackError);
             
-            // Try to get last known position
-            Geolocation.getLastKnownPosition(
-              (lastPosition) => {
-                console.log('Last known position:', lastPosition);
-                const { latitude, longitude } = lastPosition.coords;
-                reverseGeocode(latitude, longitude);
-              },
-              (lastError) => {
-                console.log('Last known position error:', lastError);
-                Alert.alert(
-                  'Location Error',
-                  'Unable to get your current location. Please check your GPS settings and try again, or search manually.',
-                  [
-                    { text: 'Try Again', onPress: () => getCurrentLocation() },
-                    { text: 'Cancel', style: 'cancel' }
-                  ]
-                );
-                setIsGettingLocation(false);
-              }
+            // Show error alert when both high accuracy and fallback fail
+            Alert.alert(
+              'Location Error',
+              'Unable to get your current location. Please check your GPS settings and try again, or search manually.',
+              [
+                { text: 'Try Again', onPress: () => getCurrentLocation() },
+                { text: 'Cancel', style: 'cancel' }
+              ]
             );
+            setIsGettingLocation(false);
           },
           {
             enableHighAccuracy: false,
@@ -376,8 +355,15 @@ function LocationScreen({ navigation }) {
   };
 
   return (
-     <CommonBackground>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1a0033" />
+      
+      {/* Background Image */}
+      <Image 
+        source={require('../../assets/images/Location.jpeg')} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -412,10 +398,10 @@ function LocationScreen({ navigation }) {
                 style={styles.locationGradientBorder}
               >
                 <View style={styles.locationDisplayInner}>
-                  <LocationPinIcon width={20} height={20} color="#8A2BE2" />
                   <Text style={styles.locationText}>
                     {isGettingLocation ? 'Getting location...' : currentLocation}
                   </Text>
+                  <LocationPinIcon width={23} height={24} color="white" />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -443,7 +429,7 @@ function LocationScreen({ navigation }) {
                   style={styles.searchButton}
                   onPress={handleLocationSearch}
                 >
-                  <SearchIcon width={20} height={20} color="#8A2BE2" />
+                  <SearchIcon width={20} height={20} color="white" />
                 </TouchableOpacity>
               </View>
             </LinearGradient>
@@ -460,7 +446,7 @@ function LocationScreen({ navigation }) {
           />
         </View>
       </ScrollView>
-     </CommonBackground>
+    </View>
   );
 }
 
@@ -468,11 +454,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
+  },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 120, // Extra padding to account for the bottom button
+    zIndex: 1,
   },
   backButton: {
     position: 'absolute',
@@ -483,11 +480,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: 'white',
     textAlign: 'center',
     marginBottom: 40,
     marginTop: 20,
+    fontFamily: 'Lexend-SemiBold',
   },
   contentContainer: {
     marginBottom: 40,
@@ -498,6 +496,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 30,
+    fontFamily: 'Lexend-Regular',
   },
   locationGradientBorder: {
     borderRadius: 30,
@@ -534,7 +533,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#DA489E',
     marginBottom: 12,
-
+    fontFamily: 'Lexend-SemiBold',
   },
   locationDisplay: {
     flexDirection: 'row',
@@ -549,8 +548,8 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 16,
     color: 'white',
-    marginLeft: 12,
     flex: 1,
+    fontFamily: 'Lexend-Regular',
   },
   searchContainer: {
     marginBottom: 30,
@@ -571,6 +570,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
     paddingVertical: 14,
+    fontFamily: 'Lexend-Regular',
   },
   searchButton: {
     padding: 8,
@@ -604,7 +604,12 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   buttonContainer: {
-    marginTop: -10,
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    zIndex: 2,
   },
   continueButton: {
     width: '70%',

@@ -16,10 +16,11 @@ import {
   ActivityIndicator,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera, requestCameraPermission } from 'react-native-image-picker';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import MediaStoreService from '../../services/MediaStoreService';
 import ImageCropModal from './ImageCropModal';
+import { BackIcon, DropdownArrow, CameraFillIcon } from '../icons/SvgIcons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window'); 
 
@@ -32,7 +33,7 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
   const [showCamera, setShowCamera] = useState(false);
   const [allImages, setAllImages] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState('Recent');
+  const [selectedFilter, setSelectedFilter] = useState('Recents');
   const [showCropModal, setShowCropModal] = useState(false);
   const [selectedImageForCrop, setSelectedImageForCrop] = useState(null);
 
@@ -44,11 +45,11 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
   const tabs = ['Thought', 'Images', 'Vibes', 'Videos', 'Sticker'];
   
   const dropdownOptions = [
-    { id: 'recent', label: 'Recents', icon: '🔄' },
-    { id: 'photos', label: 'Photos', icon: '🏔️' },
-    { id: 'videos', label: 'Videos', icon: '▶️' },
-    { id: 'google', label: 'Google Photos', icon: '📌' },
-    { id: 'albums', label: 'All Albums', icon: '⊞' },
+    { id: 'recent', label: 'Recents', icon: '' },
+    { id: 'photos', label: 'Photos', icon: '' },
+    { id: 'videos', label: 'Videos', icon: '' },
+    { id: 'google', label: 'Google Photos', icon: '' },
+    { id: 'albums', label: 'All Albums', icon: '' },
   ];
 
   const requestPermissions = async () => {
@@ -81,17 +82,19 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
         console.log(`🎉 SUCCESS! Loaded ALL ${images.length} real gallery media!`);
         console.log(`📱 Complete gallery access - no limits applied`);
       } else {
-        // No real images found, show message and open system gallery
-        console.log('❌ No real images found, opening system gallery directly');
-        // Open system gallery directly when no images are found
-        handleGalleryPress('mixed');
+        // No real images found, show camera placeholder only
+        console.log('❌ No real images found, showing camera placeholder');
+        setAllImages([]);
+        setGalleryImages([cameraPlaceholder]);
       }
     } catch (error) {
       console.error('❌ Error loading gallery:', error);
       
-      // On error, open system gallery directly
-      console.log('🔄 Error occurred, opening system gallery directly');
-      handleGalleryPress('mixed');
+      // On error, show camera placeholder only
+      console.log('🔄 Error occurred, showing camera placeholder');
+      const cameraPlaceholder = MediaStoreService.getCameraPlaceholder();
+      setAllImages([]);
+      setGalleryImages([cameraPlaceholder]);
     } finally {
       setIsLoading(false);
     }
@@ -114,17 +117,89 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
     }
   }, [visible]);
 
-  const handleCameraPress = () => {
-    // Instagram style - direct camera access without permission checks
-    const options = {
-      mediaType: 'mixed',
-      includeBase64: false,
-      maxHeight: 2000,
-      maxWidth: 2000,
-      quality: 0.8,
-    };
+  // Apply default "Recents" filter when images are loaded
+  useEffect(() => {
+    if (allImages.length > 0 && selectedFilter === 'Recents') {
+      const cameraPlaceholder = MediaStoreService.getCameraPlaceholder();
+      setGalleryImages([cameraPlaceholder, ...allImages]);
+      console.log('📱 Applied default Recents filter:', allImages.length, 'items');
+      console.log('📱 Current selected filter:', selectedFilter);
+    }
+  }, [allImages, selectedFilter]);
 
-    launchCamera(options, handleImagePickerResponse);
+  // Log initial state when component mounts
+  useEffect(() => {
+    if (visible) {
+      console.log('📱 InstagramMediaPicker opened with default filter:', selectedFilter);
+    }
+  }, [visible, selectedFilter]);
+
+  const requestCameraPermissionAndroid = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'This app needs access to camera to take photos and videos.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn('Permission request error:', err);
+        return false;
+      }
+    }
+    return true; // iOS doesn't need explicit permission for image picker
+  };
+
+  const handleCameraPress = async () => {
+    console.log('📷 handleCameraPress called!');
+    
+    try {
+      let permissionGranted = false;
+      
+      // Try the image picker's built-in permission request first
+      try {
+        const permission = await requestCameraPermission();
+        console.log('📷 Camera permission result (image picker):', permission);
+        permissionGranted = permission === 'granted';
+      } catch (error) {
+        console.log('📷 Image picker permission failed, trying Android permission:', error);
+        // Fallback to Android permission request
+        permissionGranted = await requestCameraPermissionAndroid();
+      }
+      
+      if (permissionGranted) {
+        const options = {
+          mediaType: 'mixed',
+          includeBase64: false,
+          maxHeight: 2000,
+          maxWidth: 2000,
+          quality: 0.8,
+        };
+
+        console.log('📷 Launching camera with options:', options);
+        launchCamera(options, handleImagePickerResponse);
+      } else {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please grant camera permission to take photos and videos.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => {
+              console.log('User should go to settings to enable camera permission');
+            }}
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('📷 Camera permission error:', error);
+      Alert.alert('Error', 'Failed to request camera permission. Please try again.');
+    }
   };
 
   const handleGalleryPress = (mediaType = 'mixed') => {
@@ -172,28 +247,73 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
     setShowDropdown(false);
 
     const cameraPlaceholder = MediaStoreService.getCameraPlaceholder();
+    
+    // Debug: Log all available media items
+    console.log('🔍 All available media items:', allImages.map(item => ({
+      type: item.type,
+      isVideo: item.isVideo,
+      fileName: item.fileName,
+      id: item.id
+    })));
 
     if (option.id === 'recent') {
       // Show all recent media (images + videos)
-      setGalleryImages([cameraPlaceholder, ...allImages]);
-      console.log('Showing all recent media:', allImages.length);
+      if (allImages.length > 0) {
+        setGalleryImages([cameraPlaceholder, ...allImages]);
+        console.log('Showing all recent media:', allImages.length);
+      } else {
+        // If no images loaded, show camera placeholder and open gallery
+        setGalleryImages([cameraPlaceholder]);
+        console.log('No images loaded, opening gallery for recent');
+        handleGalleryPress('mixed');
+      }
     } else if (option.id === 'photos') {
       // Filter to show only photos
-      const filteredPhotos = allImages.filter(item => item.type === 'image');
-      setGalleryImages([cameraPlaceholder, ...filteredPhotos]);
-      console.log('Showing photos only:', filteredPhotos.length);
+      if (allImages.length > 0) {
+        const filteredPhotos = allImages.filter(item => 
+          item.type === 'image' && item.isVideo !== true
+        );
+        setGalleryImages([cameraPlaceholder, ...filteredPhotos]);
+        console.log('Showing photos only:', filteredPhotos.length);
+        console.log('Photo items:', filteredPhotos.map(p => ({ type: p.type, isVideo: p.isVideo, fileName: p.fileName })));
+      } else {
+        // If no images loaded, open gallery for photos
+        setGalleryImages([cameraPlaceholder]);
+        console.log('No images loaded, opening gallery for photos');
+        handleGalleryPress('photo');
+      }
     } else if (option.id === 'videos') {
       // Filter to show only videos
-      const filteredVideos = allImages.filter(item => item.type === 'video');
-      setGalleryImages([cameraPlaceholder, ...filteredVideos]);
-      console.log('Showing videos only:', filteredVideos.length);
+      if (allImages.length > 0) {
+        const filteredVideos = allImages.filter(item => 
+          item.type === 'video' || item.isVideo === true
+        );
+        
+        if (filteredVideos.length > 0) {
+          setGalleryImages([cameraPlaceholder, ...filteredVideos]);
+          console.log('Showing videos only:', filteredVideos.length);
+          console.log('Video items:', filteredVideos.map(v => ({ type: v.type, isVideo: v.isVideo, fileName: v.fileName })));
+        } else {
+          // No videos found in loaded images, open gallery for videos
+          console.log('No videos found in loaded images, opening gallery for videos');
+          setGalleryImages([cameraPlaceholder]);
+          handleGalleryPress('video');
+        }
+      } else {
+        // If no images loaded, open gallery for videos
+        setGalleryImages([cameraPlaceholder]);
+        console.log('No images loaded, opening gallery for videos');
+        handleGalleryPress('video');
+      }
     } else if (option.id === 'google') {
       // Open system gallery which includes Google Photos
       console.log('Opening Google Photos via system gallery');
+      setGalleryImages([cameraPlaceholder]);
       handleGalleryPress('mixed');
     } else if (option.id === 'albums') {
       // Open system gallery for albums
       console.log('Opening All Albums via system gallery');
+      setGalleryImages([cameraPlaceholder]);
       handleGalleryPress('mixed');
     }
   };
@@ -217,8 +337,9 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
     onClose();
   };
 
-
   const handleImagePickerResponse = (response) => {
+    console.log('📷 Camera response received:', response);
+    
     if (response.didCancel) {
       console.log('User cancelled image picker');
       return;
@@ -232,16 +353,21 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
 
     if (response.assets && response.assets.length > 0) {
       const asset = response.assets[0];
+      console.log('📷 Asset captured:', asset);
       
       // For photos, show crop modal
       if (asset.type === 'image' || asset.mediaType === 'photo') {
+        console.log('📷 Photo captured, showing crop modal');
         setSelectedImageForCrop(asset.uri);
         setShowCropModal(true);
       } else {
+        console.log('📷 Video captured, selecting directly');
         // For videos, select directly
         onMediaSelected(asset);
         onClose();
       }
+    } else {
+      console.log('📷 No assets in response');
     }
   };
 
@@ -250,23 +376,17 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
       return (
         <TouchableOpacity
           style={styles.galleryItem}
-          onPress={() => handleImageSelect(item)}
+          onPress={() => {
+            console.log('📷 Camera icon clicked!');
+            Alert.alert('Camera', 'Camera button clicked! Opening camera...');
+            handleCameraPress();
+          }}
         >
           <View style={styles.cameraPreview}>
-            {device && cameraPermission ? (
-              <Camera
-                ref={camera}
-                style={styles.cameraView}
-                device={device}
-                isActive={visible}
-                photo={true}
-              />
-            ) : (
-              <View style={styles.cameraPlaceholder}>
-                <Text style={styles.cameraIcon}>📷</Text>
-                <Text style={styles.cameraText}>Camera</Text>
-              </View>
-            )}
+            <View style={styles.cameraPlaceholder}>
+              <CameraFillIcon width={24} height={24} color="#D9D8F3" />
+              <Text style={styles.cameraText}>Camera</Text>
+            </View>
           </View>
         </TouchableOpacity>
       );
@@ -279,7 +399,7 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
           onPress={() => handleGalleryPress()}
         >
           <View style={styles.galleryPlaceholder}>
-            <Text style={styles.galleryIcon}>🖼️</Text>
+            <Text style={styles.galleryIcon}></Text>
             <Text style={styles.galleryText}>Gallery</Text>
           </View>
         </TouchableOpacity>
@@ -294,7 +414,7 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
         <Image source={{ uri: item.uri }} style={styles.galleryImage} />
         {item.isVideo && (
           <View style={styles.videoIndicator}>
-            <Text style={styles.playIcon}>▶</Text>
+            <Text style={styles.playIcon}></Text>
           </View>
         )}
       </TouchableOpacity>
@@ -319,7 +439,7 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
-            <Text style={styles.backIcon}>←</Text>
+            <BackIcon width={24} height={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Upload Vibes</Text>
          
@@ -329,9 +449,9 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
         <View style={styles.recentBar}>
           <TouchableOpacity style={styles.recentButton} onPress={toggleDropdown}>
             <Text style={styles.recentText}>{selectedFilter}</Text>
-            <Text style={[styles.dropdownIcon, showDropdown && styles.dropdownIconUp]}>
-              {showDropdown ? '▲' : '▼'}
-            </Text>
+            <View style={[styles.dropdownIcon, showDropdown && styles.dropdownIconUp]}>
+              <DropdownArrow width={10} height={6} color="#fff" />
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -378,38 +498,6 @@ const InstagramMediaPicker = ({ visible, onClose, onMediaSelected }) => {
           )}
         </View>
 
-        {/* Bottom Tabs */}
-        {/* <View style={styles.bottomTabs}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[
-                styles.tab,
-                selectedTab === tab && styles.activeTab,
-              ]}
-              onPress={() => setSelectedTab(tab)}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  selectedTab === tab && styles.activeTabText,
-                ]}
-              >
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View> */}
-
-        {/* Camera Button */}
-        {/* <View style={styles.cameraButtonContainer}>
-          <TouchableOpacity style={styles.cameraButton} onPress={handleCameraPress}>
-            <View style={styles.cameraIcon}>
-              <Text style={styles.cameraIconText}>📷</Text>
-            </View>
-          </TouchableOpacity>
-        </View> */}
-
         {/* Image Crop Modal */}
         <ImageCropModal
           visible={showCropModal}
@@ -438,11 +526,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 5,
-  },
-  backIcon: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
   },
   headerTitle: {
     color: '#DD3562',
@@ -474,8 +557,9 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   dropdownIcon: {
-    color: '#fff',
-    fontSize: 12,
+    marginLeft: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dropdownIconUp: {
     transform: [{ rotate: '180deg' }],
@@ -626,10 +710,6 @@ const styles = StyleSheet.create({
   cameraPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  cameraIcon: {
-    fontSize: 24,
-    marginBottom: 4,
   },
   cameraText: {
     color: 'white',
