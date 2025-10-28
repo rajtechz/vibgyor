@@ -76,6 +76,30 @@ const logout = createAsyncThunk(
   }
 );
 
+const refreshAccessToken = createAsyncThunk(
+  'auth/refreshAccessToken',
+  async (refreshToken, { rejectWithValue }) => {
+    console.log('🔄 Redux: refreshAccessToken thunk called');
+    console.log('🔄 Refresh Token:', refreshToken ? 'Present' : 'Missing');
+    
+    try {
+      const response = await authAPI.refreshAccessToken(refreshToken);
+      console.log('📊 Redux: Refresh Token API Response:', JSON.stringify(response, null, 2));
+      
+      if (response.success) {
+        console.log('✅ Redux: refreshAccessToken success');
+        return response.data;
+      } else {
+        console.log('❌ Redux: refreshAccessToken failed:', response.error);
+        return rejectWithValue(response.error);
+      }
+    } catch (error) {
+      console.log('💥 Redux: refreshAccessToken exception:', error);
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   // User data
@@ -92,6 +116,7 @@ const initialState = {
   isVerifyingOTP: false,
   isLoggingIn: false,
   isLoggingOut: false,
+  isRefreshingToken: false,
   
   // Error states
   error: null,
@@ -105,6 +130,14 @@ const initialState = {
   // OTP verification
   otpSent: false,
   otpVerified: false,
+  
+  // Email verification
+  verifiedEmail: null,
+  emailVerified: false,
+  
+  // Profile completion status
+  isProfileCompleted: false,
+  profileCompletionStep: null,
 };
 
 // Auth slice
@@ -160,6 +193,13 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.isAuthenticated = true;
       
+      // Store tokens in AsyncStorage for persistence
+      if (action.payload.accessToken && action.payload.refreshToken) {
+        import('../../utils/authUtils').then(({ setAuthTokens }) => {
+          setAuthTokens(action.payload.accessToken, action.payload.refreshToken);
+        });
+      }
+      
       // DEBUG: Verify state after saving
       console.log('🔍 DEBUG: Redux state after saving...');
       console.log('🔍 DEBUG: state.accessToken:', state.accessToken);
@@ -168,6 +208,24 @@ const authSlice = createSlice({
       console.log('🔍 DEBUG: state.user:', state.user);
       
       console.log('✅ Redux: Tokens and user data saved successfully');
+    },
+    
+    // Set verified email
+    setVerifiedEmail: (state, action) => {
+      console.log('📧 Redux: setVerifiedEmail action called');
+      console.log('📧 Redux: Email:', action.payload);
+      state.verifiedEmail = action.payload;
+      state.emailVerified = true;
+      console.log('✅ Redux: Verified email saved successfully');
+    },
+    
+    // Set profile completion status
+    setProfileCompletion: (state, action) => {
+      console.log('👤 Redux: setProfileCompletion action called');
+      console.log('👤 Redux: Payload:', action.payload);
+      state.isProfileCompleted = action.payload.isCompleted;
+      state.profileCompletionStep = action.payload.step;
+      console.log('✅ Redux: Profile completion status saved successfully');
     },
     
     // Clear auth state
@@ -180,9 +238,19 @@ const authSlice = createSlice({
       state.countryCode = '+91';
       state.otpSent = false;
       state.otpVerified = false;
+      state.verifiedEmail = null;
+      state.emailVerified = false;
+      state.isProfileCompleted = false;
+      state.profileCompletionStep = null;
       state.error = null;
       state.otpError = null;
       state.loginError = null;
+      
+      // Clear AsyncStorage
+      import('../../utils/authUtils').then(({ clearAuthTokens, clearAuthData }) => {
+        clearAuthTokens();
+        clearAuthData();
+      });
     },
   },
   extraReducers: (builder) => {
@@ -255,6 +323,31 @@ const authSlice = createSlice({
         state.isLoggingOut = false;
         state.error = action.payload;
       });
+
+    // Refresh Access Token
+    builder
+      .addCase(refreshAccessToken.pending, (state) => {
+        state.isRefreshingToken = true;
+        state.error = null;
+      })
+      .addCase(refreshAccessToken.fulfilled, (state, action) => {
+        state.isRefreshingToken = false;
+        // Update access token with new token from response
+        if (action.payload?.accessToken) {
+          state.accessToken = action.payload.accessToken;
+          console.log('✅ Redux: Access token refreshed successfully');
+        }
+        if (action.payload?.refreshToken) {
+          state.refreshToken = action.payload.refreshToken;
+          console.log('✅ Redux: Refresh token updated successfully');
+        }
+        state.error = null;
+      })
+      .addCase(refreshAccessToken.rejected, (state, action) => {
+        state.isRefreshingToken = false;
+        state.error = action.payload;
+        console.log('❌ Redux: Token refresh failed:', action.payload);
+      });
   },
 });
 
@@ -269,6 +362,8 @@ export const {
   clearPhoneNumber,
   resetOTPState,
   setTokens,
+  setVerifiedEmail,
+  setProfileCompletion,
   clearAuth,
 } = authSlice.actions;
 
@@ -278,6 +373,7 @@ export {
   verifyOTP,
   login,
   logout,
+  refreshAccessToken,
 };
 
 // Export selectors
@@ -286,12 +382,8 @@ export const selectUser = (state) => state.auth.user;
 export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
 export const selectIsLoading = (state) => state.auth.isLoading;
 export const selectPhoneNumber = (state) => state.auth.phoneNumber;
-export const selectOTPState = (state) => ({
-  otpSent: state.auth.otpSent,
-  otpVerified: state.auth.otpVerified,
-  isSendingOTP: state.auth.isSendingOTP,
-  isVerifyingOTP: state.auth.isVerifyingOTP,
-});
+// Memoized selector to prevent unnecessary rerenders
+export const selectOTPState = (state) => state.auth; // Return entire auth state to avoid creating new object each time
 
 // Export reducer
 export default authSlice.reducer;

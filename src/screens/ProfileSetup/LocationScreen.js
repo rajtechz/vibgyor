@@ -1,7 +1,5 @@
 
 
-
-
 // src/screens/ProfileSetup/LocationScreen.js
 import React, { useState } from 'react';
 import LinearGradient from 'react-native-linear-gradient';
@@ -9,6 +7,10 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Status
 import Svg, { Path } from 'react-native-svg';
 import Geolocation from '@react-native-community/geolocation';
 import CustomButton from '../../components/common/CustomButton';
+import ErrorModal from '../../components/common/ErrorModal';
+import { authAPI } from '../../api/authAPI';
+import { useSelector, useDispatch } from 'react-redux';
+import { setProfileCompletion } from '../../redux/slices/authSlice';
 
      
 // Back Icon Component
@@ -58,6 +60,38 @@ function LocationScreen({ navigation }) {
   const [currentLocation, setCurrentLocation] = useState('Maple Green, Florida, US');
   const [searchQuery, setSearchQuery] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [locationData, setLocationData] = useState({
+    city: '',
+    country: '',
+    lat: 0,
+    lng: 0
+  });
+  const [errorModal, setErrorModal] = useState({
+    visible: false,
+    message: '',
+    title: 'Error'
+  });
+
+  // Get access token from Redux
+  const authState = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+
+  const showError = (message, title = 'Error') => {
+    setErrorModal({
+      visible: true,
+      message,
+      title
+    });
+  };
+
+  const hideError = () => {
+    setErrorModal({
+      visible: false,
+      message: '',
+      title: 'Error'
+    });
+  };
 
   const requestLocationPermission = async () => {
     if (Platform.OS === 'android') {
@@ -296,6 +330,24 @@ function LocationScreen({ navigation }) {
       setCurrentLocation(locationString);
       console.log('✅ Location set to:', locationString);
       
+      // Extract and store location data for API
+      const city = data.address?.city || data.address?.town || data.address?.village || '';
+      const country = data.address?.country || '';
+      
+      setLocationData({
+        city: city,
+        country: country,
+        lat: latitude,
+        lng: longitude
+      });
+      
+      console.log('📍 Location Data for API:', {
+        city: city,
+        country: country,
+        lat: latitude,
+        lng: longitude
+      });
+      
     } catch (error) {
       console.log('❌ Reverse geocoding error:', error);
       
@@ -346,12 +398,108 @@ function LocationScreen({ navigation }) {
   };
 
 
-  const handleContinue = () => {
-    if (!currentLocation) {
-      alert('Please set your location');
+  const handleContinue = async () => {
+    console.log('🚀 ===== LOCATION UPDATE API TEST START =====');
+    console.log('📍 DEBUG: handleContinue called');
+    console.log('📍 DEBUG: Current Location:', currentLocation);
+    console.log('📍 DEBUG: Location Data:', locationData);
+    console.log('📍 DEBUG: Auth State:', {
+      isAuthenticated: authState.isAuthenticated,
+      accessToken: authState.accessToken ? 'Present' : 'Missing',
+      accessTokenLength: authState.accessToken?.length || 0
+    });
+
+    // Check if user is authenticated
+    if (!authState.isAuthenticated || !authState.accessToken) {
+      console.log('❌ DEBUG: User not authenticated or token missing');
+      showError('Please login first to update profile', 'Authentication Required');
       return;
     }
-    navigation.navigate('Preferences');
+
+    // Validate location data
+    if (!currentLocation || !locationData.city || !locationData.country) {
+      console.log('❌ DEBUG: Missing location data');
+      showError('Please set your location first', 'Location Required');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('📍 DEBUG: Starting location profile update...');
+      
+      // Prepare profile data with location information
+      const profileData = {
+        location: {
+          city: locationData.city,
+          country: locationData.country,
+          lat: locationData.lat,
+          lng: locationData.lng
+        }
+      };
+      
+      console.log('📍 DEBUG: Location Profile Data:', JSON.stringify(profileData, null, 2));
+      
+      console.log('🌐 DEBUG: About to call authAPI.updateUserProfile');
+      console.log('🌐 DEBUG: Parameters:', {
+        profileData: profileData,
+        token: authState.accessToken ? 'Present' : 'Missing'
+      });
+      
+      // Call update profile API with token
+      const result = await authAPI.updateUserProfile(profileData, authState.accessToken);
+      
+      console.log('📊 DEBUG: Update Profile API Response:', result);
+      console.log('📊 DEBUG: Response Success:', result.success);
+      console.log('📊 DEBUG: Response Data:', result.data);
+      console.log('📊 DEBUG: Response Error:', result.error);
+      
+      if (result.success && result.data?.success) {
+        console.log('✅ DEBUG: Location profile updated successfully');
+        
+        // Check next step from response
+        const nextStep = result.data?.data?.nextStep || result.data?.data?.profileCompletionStep;
+        console.log('📊 DEBUG: Next step:', nextStep);
+        
+        // Check if profile is completed
+        if (nextStep === 'completed' || result.data?.data?.isProfileCompleted) {
+          console.log('✅ DEBUG: Profile is completed, storing completion status');
+          
+          // Store profile completion in Redux
+          dispatch(setProfileCompletion({
+            isCompleted: true,
+            step: 'completed'
+          }));
+          
+          // Store profile completion in AsyncStorage
+          const { setProfileSetupStatus } = await import('../../utils/authUtils');
+          await setProfileSetupStatus(true);
+          
+          // Navigate to home screen
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
+        } else {
+          // Navigate to SwitchProfile screen as requested
+          console.log('📊 DEBUG: Navigating to SwitchProfile screen');
+          navigation.navigate('SwitchProfiles');
+        }
+      } else {
+        console.log('❌ DEBUG: Location profile update failed');
+        console.log('❌ DEBUG: Error:', result.error);
+        console.log('❌ DEBUG: Full Error Response:', JSON.stringify(result, null, 2));
+        showError(result.error || 'Failed to update location', 'Profile Update Error');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in handleContinue:', error);
+      console.error('💥 DEBUG: Error type:', typeof error);
+      console.error('💥 DEBUG: Error message:', error.message);
+      console.error('💥 DEBUG: Error stack:', error.stack);
+      showError(error.message || 'Failed to update location', 'Profile Update Error');
+    } finally {
+      setIsLoading(false);
+      console.log('🚀 ===== LOCATION UPDATE API TEST END =====');
+    }
   };
 
   return (
@@ -410,29 +558,7 @@ function LocationScreen({ navigation }) {
 
           <View style={styles.searchContainer}>
 
-            <LinearGradient
-              colors={['#DD3562', '#8354FF']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.searchInputGradient}
-            >
-              <View style={styles.searchInputWrapper}>
-                <TextInput
-                  style={styles.searchInput}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Search New Location"
-                  placeholderTextColor="#666"
-                  onSubmitEditing={handleLocationSearch}
-                />
-                <TouchableOpacity
-                  style={styles.searchButton}
-                  onPress={handleLocationSearch}
-                >
-                  <SearchIcon width={20} height={20} color="white" />
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
+           
           </View>
 
         
@@ -440,12 +566,20 @@ function LocationScreen({ navigation }) {
 
         <View style={styles.buttonContainer}>
           <CustomButton
-            title="Continue"
+            title={isLoading ? "Updating..." : "Continue"}
             onPress={handleContinue}
-            style={styles.continueButton}
+            style={[styles.continueButton, isLoading && styles.disabledButton]}
+            disabled={isLoading}
           />
         </View>
       </ScrollView>
+
+      <ErrorModal
+        visible={errorModal.visible}
+        title={errorModal.title}
+        message={errorModal.message}
+        onClose={hideError}
+      />
     </View>
   );
 }
@@ -615,6 +749,9 @@ const styles = StyleSheet.create({
     width: '70%',
     alignSelf: 'center',
     borderRadius: 35,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 

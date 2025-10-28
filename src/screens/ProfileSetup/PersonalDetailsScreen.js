@@ -11,7 +11,7 @@ import { BackIcon, CalendarIcon } from '../../components/icons/SvgIcons';
 import { authAPI } from '../../api/authAPI';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
-import { setTokens } from '../../redux/slices/authSlice';
+import { setTokens, setVerifiedEmail, setProfileCompletion } from '../../redux/slices/authSlice';
 
 function PersonalDetailsScreen({ navigation }) {
   const route = useRoute();
@@ -34,6 +34,12 @@ function PersonalDetailsScreen({ navigation }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [emailVerified, setEmailVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Username validation states
+  const [usernameStatus, setUsernameStatus] = useState(null); // 'available', 'unavailable', 'checking', null
+  const [usernameSuggestions, setUsernameSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   // Get Redux state for debugging
   const authState = useSelector((state) => state.auth);
@@ -45,7 +51,9 @@ function PersonalDetailsScreen({ navigation }) {
       accessToken: authState.accessToken ? 'Present' : 'Missing',
       refreshToken: authState.refreshToken ? 'Present' : 'Missing',
       isAuthenticated: authState.isAuthenticated,
-      user: authState.user ? 'Present' : 'Missing'
+      user: authState.user ? 'Present' : 'Missing',
+      verifiedEmail: authState.verifiedEmail,
+      emailVerified: authState.emailVerified
     });
     
     if (authState.accessToken) {
@@ -56,6 +64,77 @@ function PersonalDetailsScreen({ navigation }) {
       console.log('❌ DEBUG: Full auth state:', JSON.stringify(authState, null, 2));
     }
   }, [authState]);
+
+  // Load verified email from Redux
+  useEffect(() => {
+    if (authState.verifiedEmail && authState.emailVerified) {
+      console.log('📧 DEBUG: Loaded verified email from Redux:', authState.verifiedEmail);
+      setEmailVerified(true);
+      setFormData(prev => ({ ...prev, email: authState.verifiedEmail }));
+    }
+  }, [authState.verifiedEmail, authState.emailVerified]);
+
+  // Get current profile step on component mount
+  useEffect(() => {
+    const getCurrentStep = async () => {
+      try {
+        console.log('📊 DEBUG: Fetching current profile step...');
+        const result = await authAPI.getProfileStep(authState.accessToken);
+        
+        if (result.success) {
+          console.log('✅ DEBUG: Profile step retrieved:', result.data);
+          
+          // Extract step information from API response
+          const currentStep = result.data?.data?.currentStep || result.data?.data?.profileCompletionStep;
+          const isCompleted = result.data?.data?.isCurrentStepCompleted || result.data?.data?.isProfileCompleted;
+          const nextStep = result.data?.data?.nextStep;
+          
+          console.log('📊 DEBUG: Current step:', currentStep);
+          console.log('📊 DEBUG: Is completed:', isCompleted);
+          console.log('📊 DEBUG: Next step:', nextStep);
+          
+          // Check if profile is completed
+          if (currentStep === 'completed' || isCompleted) {
+            console.log('✅ DEBUG: Profile is completed, navigating to home screen');
+            // Profile is completed, navigate to home screen
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' }],
+            });
+            return;
+          }
+          
+          // If basic_info step is already completed, we might want to pre-fill data
+          if (currentStep === 'basic_info' && isCompleted) {
+            console.log('📊 DEBUG: Basic info step already completed, pre-filling data');
+            // TODO: Pre-fill form data from existing profile
+          } else if (currentStep !== 'basic_info' && currentStep !== 'personal_details') {
+            console.log('📊 DEBUG: User is on a different step, navigating accordingly');
+            // Navigate to the appropriate step
+            if (currentStep === 'gender') {
+              navigation.navigate('Gender');
+            } else if (currentStep === 'interests') {
+              navigation.navigate('Interests');
+            } else if (currentStep === 'preferences') {
+              navigation.navigate('Preferences');
+            } else if (currentStep === 'location') {
+              navigation.navigate('Location');
+            }
+          }
+        } else {
+          console.log('❌ DEBUG: Failed to get profile step');
+          console.log('❌ DEBUG: Error:', result.error);
+        }
+      } catch (error) {
+        console.error('💥 DEBUG: Exception getting profile step:', error);
+      }
+    };
+
+    // Only get step if user is authenticated
+    if (authState.isAuthenticated && authState.accessToken) {
+      getCurrentStep();
+    }
+  }, [authState.isAuthenticated, authState.accessToken, navigation]);
 
   // Handle email verification success when returning from VerifyNumberScreen
   useFocusEffect(
@@ -70,13 +149,78 @@ function PersonalDetailsScreen({ navigation }) {
       if (isVerified && verifiedEmail) {
         console.log('✅ DEBUG: Email verification successful, updating state');
         setEmailVerified(true);
+        
+        // Store verified email in Redux
+        console.log('💾 Redux: Storing verified email:', verifiedEmail);
+        dispatch(setVerifiedEmail(verifiedEmail));
+        
         // Update email if it was verified
         if (verifiedEmail !== formData.email) {
           setFormData(prev => ({ ...prev, email: verifiedEmail }));
         }
       }
-    }, [emailVerified, route.params, formData.email])
+    }, [emailVerified, route.params, formData.email, dispatch])
   );
+
+  // Check username availability
+  const checkUsernameAvailability = async (username) => {
+    console.log('👤 DEBUG: Checking username availability:', username);
+    setIsCheckingUsername(true);
+    setUsernameStatus('checking');
+    
+    try {
+      const result = await authAPI.checkUsernameAvailable(username);
+      console.log('📊 DEBUG: Username check result:', result);
+      
+      if (result.success) {
+        // Assuming the API returns { available: true/false }
+        const isAvailable = result.data?.available !== false;
+        
+        if (isAvailable) {
+          console.log('✅ DEBUG: Username is available');
+          setUsernameStatus('available');
+          setShowSuggestions(false);
+        } else {
+          console.log('❌ DEBUG: Username is not available');
+          setUsernameStatus('unavailable');
+          // Get suggestions
+          await getUsernameSuggestions(username);
+        }
+      } else {
+        console.log('❌ DEBUG: Username check failed');
+        setUsernameStatus(null);
+        showError(result.error || 'Failed to check username availability');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in checkUsernameAvailability:', error);
+      setUsernameStatus(null);
+      showError(error.message || 'Failed to check username availability');
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  };
+
+  // Debounced username availability check
+  useEffect(() => {
+    let debounceTimer;
+    
+    if (formData.lastName && formData.lastName.length >= 3) {
+      debounceTimer = setTimeout(async () => {
+        await checkUsernameAvailability(formData.lastName);
+      }, 500); // 500ms debounce
+    } else {
+      setUsernameStatus(null);
+      setUsernameSuggestions([]);
+      setShowSuggestions(false);
+    }
+    
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.lastName]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -137,6 +281,7 @@ function PersonalDetailsScreen({ navigation }) {
   const handleEmailVerification = async () => {
     console.log('📧 DEBUG: handleEmailVerification called');
     console.log('📧 DEBUG: Email:', formData.email);
+    console.log('📧 DEBUG: Full authState:', JSON.stringify(authState, null, 2));
     
     if (!formData.email) {
       console.log('❌ DEBUG: No email provided');
@@ -152,12 +297,26 @@ function PersonalDetailsScreen({ navigation }) {
       return;
     }
 
+    // Check if user is authenticated
+    if (!authState.isAuthenticated || !authState.accessToken) {
+      console.log('❌ DEBUG: User not authenticated or token missing');
+      console.log('📊 DEBUG: isAuthenticated:', authState.isAuthenticated);
+      console.log('📊 DEBUG: accessToken:', authState.accessToken);
+      showError('Please login first to verify email', 'Authentication Required');
+      return;
+    }
+
     try {
       setIsLoading(true);
       console.log('📧 DEBUG: Calling sendEmailOTP API...');
       
-      // Call Email OTP API
-      const result = await authAPI.sendEmailOTP(formData.email);
+      // Get access token from Redux
+      const accessToken = authState.accessToken;
+      console.log('🔑 DEBUG: Access Token:', accessToken ? 'Present' : 'Missing');
+      console.log('🔑 DEBUG: Access Token Value:', accessToken);
+      
+      // Call Email OTP API with token
+      const result = await authAPI.sendEmailOTP(formData.email, accessToken);
       
       console.log('📊 DEBUG: Email OTP API Response:', result);
       
@@ -202,13 +361,51 @@ function PersonalDetailsScreen({ navigation }) {
     setEmailVerified(true);
   };
 
+  // Get username suggestions
+  const getUsernameSuggestions = async (base) => {
+    console.log('💡 DEBUG: Getting username suggestions for:', base);
+    
+    try {
+      const result = await authAPI.getUsernameSuggestions(base);
+      console.log('📊 DEBUG: Username suggestions result:', result);
+      
+      if (result.success && result.data?.suggestions) {
+        setUsernameSuggestions(result.data.suggestions);
+        setShowSuggestions(true);
+      } else {
+        setUsernameSuggestions([]);
+        setShowSuggestions(false);
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in getUsernameSuggestions:', error);
+      setUsernameSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
 
+  // Handle suggestion selection
+  const handleSuggestionSelect = (suggestion) => {
+    console.log('✅ DEBUG: Selected suggestion:', suggestion);
+    setFormData(prev => ({ ...prev, lastName: suggestion }));
+    setShowSuggestions(false);
+    setUsernameStatus('available');
+  };
 
-
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // Validate form data
     if (!formData.firstName || !formData.lastName || !formData.email) {
       showError('Please fill in all required fields', 'Missing Information');
+      return;
+    }
+
+    // Validate username availability
+    if (usernameStatus === 'unavailable') {
+      showError('Please choose an available username', 'Username Unavailable');
+      return;
+    }
+
+    if (usernameStatus === 'checking') {
+      showError('Please wait while we check your username', 'Checking Username');
       return;
     }
 
@@ -217,7 +414,95 @@ function PersonalDetailsScreen({ navigation }) {
       return;
     }
 
-    navigation.navigate('Gender');
+    try {
+      setIsLoading(true);
+      console.log('📊 DEBUG: Preparing to update profile...');
+      
+      // Prepare complete profile data as per API specification
+      const profileData = {
+        fullName: formData.firstName,
+        username: formData.lastName,
+        email: formData.email,
+        dob: formData.dob,
+        bio: formData.bio || '',
+        // Additional fields will be added in subsequent steps
+        gender: '', // Will be filled in Gender screen
+        pronouns: '', // Will be filled in Gender screen
+        likes: [], // Will be filled in Interests screen
+        interests: [], // Will be filled in Interests screen
+        preferences: {
+          hereFor: '', // Will be filled in Preferences screen
+          primaryLanguage: '', // Will be filled in Preferences screen
+          secondaryLanguage: '' // Will be filled in Preferences screen
+        },
+        location: {
+          city: '', // Will be filled in Location screen
+          country: '', // Will be filled in Location screen
+          lat: 0, // Will be filled in Location screen
+          lng: 0 // Will be filled in Location screen
+        }
+      };
+      
+      console.log('📊 DEBUG: Complete Profile Data:', JSON.stringify(profileData, null, 2));
+      
+      // Call update profile API with token
+      const result = await authAPI.updateUserProfile(profileData, authState.accessToken);
+      
+      console.log('📊 DEBUG: Update Profile API Response:', result);
+      
+      if (result.success && result.data?.success) {
+        console.log('✅ DEBUG: Profile updated successfully');
+        
+        // Check next step from response
+        const nextStep = result.data?.data?.nextStep || result.data?.data?.profileCompletionStep;
+        console.log('📊 DEBUG: Next step:', nextStep);
+        
+        // Check if profile is completed
+        if (nextStep === 'completed' || result.data?.data?.isProfileCompleted) {
+          console.log('✅ DEBUG: Profile is completed, storing completion status');
+          
+          // Store profile completion in Redux
+          dispatch(setProfileCompletion({
+            isCompleted: true,
+            step: 'completed'
+          }));
+          
+          // Store profile completion in AsyncStorage
+          const { setProfileSetupStatus } = await import('../../utils/authUtils');
+          await setProfileSetupStatus(true);
+          
+          // Navigate to home screen
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
+        } else {
+          // Navigate to appropriate next screen based on nextStep
+          if (nextStep === 'gender') {
+            navigation.navigate('Gender');
+          } else if (nextStep === 'interests') {
+            navigation.navigate('Interests');
+          } else if (nextStep === 'preferences') {
+            navigation.navigate('Preferences');
+          } else if (nextStep === 'location') {
+            navigation.navigate('Location');
+          } else {
+            // Default to Gender screen if no specific next step
+            console.log('📊 DEBUG: No specific next step, navigating to Gender');
+            navigation.navigate('Gender');
+          }
+        }
+      } else {
+        console.log('❌ DEBUG: Profile update failed');
+        const errorMessage = result.data?.message || result.error || 'Failed to update profile';
+        showError(errorMessage, 'Profile Update Error');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in handleContinue:', error);
+      showError(error.message || 'Failed to update profile', 'Profile Update Error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -267,7 +552,7 @@ function PersonalDetailsScreen({ navigation }) {
                   style={styles.input}
                   value={formData.firstName}
                   onChangeText={(text) => handleInputChange('firstName', text)}
-                  placeholder="First Name"
+                  placeholder="Full Name"
                   placeholderTextColor="white"
                 />
               </LinearGradient>
@@ -275,23 +560,53 @@ function PersonalDetailsScreen({ navigation }) {
           </View>
 
           <View style={styles.inputGroup}>
-           
             <View style={styles.inputContainer}>
               <LinearGradient
-                colors={['#C53E8D', '#8A52F3']}
+                colors={usernameStatus === 'unavailable' ? ['#FF6B6B', '#FF5252'] : ['#C53E8D', '#8A52F3']}
                 style={styles.inputGradientBorder}
                 start={{x: 0, y: 0}}
                 end={{x: 1, y: 0}}
               >
-                <TextInput
-                  style={styles.input}
-                  value={formData.lastName}
-                  onChangeText={(text) => handleInputChange('lastName', text)}
-                  placeholder="Last Name"
-                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                />
+                <View style={styles.usernameInputContainer}>
+                  <TextInput
+                    style={styles.usernameInput}
+                    value={formData.lastName}
+                    onChangeText={(text) => {
+                      handleInputChange('lastName', text);
+                      setUsernameStatus(null);
+                    }}
+                    placeholder="User Name"
+                    placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                    autoCapitalize="none"
+                  />
+                  {isCheckingUsername && (
+                    <Text style={styles.usernameStatusText}>Checking...</Text>
+                  )}
+                  {usernameStatus === 'available' && (
+                    <Text style={styles.usernameAvailableText}>✓ Available</Text>
+                  )}
+                  {usernameStatus === 'unavailable' && (
+                    <Text style={styles.usernameUnavailableText}>✗ Taken</Text>
+                  )}
+                </View>
               </LinearGradient>
             </View>
+            
+            {/* Username Suggestions */}
+            {showSuggestions && usernameSuggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <Text style={styles.suggestionsTitle}>Suggested usernames:</Text>
+                {usernameSuggestions.map((suggestion, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.suggestionItem}
+                    onPress={() => handleSuggestionSelect(suggestion)}
+                  >
+                    <Text style={styles.suggestionText}>{suggestion}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -303,15 +618,16 @@ function PersonalDetailsScreen({ navigation }) {
                 start={{x: 0, y: 0}}
                 end={{x: 1, y: 0}}
               >
-                <View style={styles.emailInputContainer}>
+                <View style={[styles.emailInputContainer, emailVerified && styles.emailInputContainerVerified]}>
                   <TextInput
-                    style={styles.emailInput}
+                    style={[styles.emailInput, emailVerified && styles.emailInputVerified]}
                     value={formData.email}
                     onChangeText={(text) => handleInputChange('email', text)}
                     placeholder="E-mail"
                     placeholderTextColor="rgba(255, 255, 255, 0.6)"
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    editable={!emailVerified}
                   />
                   <TouchableOpacity
                     style={[styles.verifyButton, emailVerified && styles.verifyButtonVerified]}
@@ -514,6 +830,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend-Regular',
     // paddingRight: 10,
   },
+  emailInputVerified: {
+    opacity: 0.7,
+  },
+  emailInputContainerVerified: {
+    backgroundColor: 'rgba(26, 0, 51, 0.5)',
+  },
   verifyButton: {
     borderRadius: 8,
     overflow: 'hidden',
@@ -605,6 +927,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  // Username styles
+  usernameInputContainer: {
+    backgroundColor: '#1a0033',
+    borderRadius: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  usernameInput: {
+    flex: 1,
+    fontSize: 16,
+    color: 'white',
+    borderWidth: 0,
+    fontFamily: 'Lexend-Regular',
+    paddingRight: 10,
+  },
+  usernameStatusText: {
+    fontSize: 12,
+    color: '#FFA500',
+    fontFamily: 'Lexend-SemiBold',
+  },
+  usernameAvailableText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontFamily: 'Lexend-SemiBold',
+  },
+  usernameUnavailableText: {
+    fontSize: 12,
+    color: '#FF6B6B',
+    fontFamily: 'Lexend-SemiBold',
+  },
+  // Suggestions styles
+  suggestionsContainer: {
+    marginTop: 10,
+    backgroundColor: 'rgba(26, 0, 51, 0.8)',
+    borderRadius: 12,
+    padding: 12,
+  },
+  suggestionsTitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 8,
+    fontFamily: 'Lexend-SemiBold',
+  },
+  suggestionItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+    backgroundColor: 'rgba(197, 62, 141, 0.2)',
+    borderRadius: 8,
+  },
+  suggestionText: {
+    fontSize: 14,
+    color: 'white',
+    fontFamily: 'Lexend-Regular',
   },
 });
 

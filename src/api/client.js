@@ -61,11 +61,14 @@ const request = async (endpoint, options = {}) => {
   const url = buildURL(endpoint);
   const headers = await buildHeaders(options.headers);
   
+  // Remove headers from options to avoid override
+  const { headers: _, ...otherOptions } = options;
+  
   const config = {
     method: options.method || 'GET',
     headers,
     timeout: API_CONFIG.TIMEOUT,
-    ...options,
+    ...otherOptions,
   };
 
   try {

@@ -6,7 +6,7 @@
  * Set to false to remember user authentication state
  */
 export const APP_CONFIG = {
-  ALWAYS_START_FRESH: true, // Change this to false if you want to remember user state
+  ALWAYS_START_FRESH: false, // Set to false to remember user state and avoid re-navigation to profile setup
 };
 
 /**

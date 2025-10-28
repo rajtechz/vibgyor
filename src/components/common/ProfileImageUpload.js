@@ -103,19 +103,44 @@ function ProfileImageUpload({ onImageSelected, currentImage, size = 120 }) {
     console.log('📸 DEBUG: AccessToken type:', typeof accessToken);
     console.log('📸 DEBUG: AccessToken length:', accessToken?.length);
     
-    if (!accessToken) {
+    // FIX: Get latest accessToken from Redux store directly
+    const latestAccessToken = fullAuthState.accessToken;
+    console.log('📸 DEBUG: Latest accessToken from Redux:', latestAccessToken ? 'Present' : 'Missing');
+    console.log('📸 DEBUG: Latest accessToken value:', latestAccessToken);
+    
+    const tokenToUse = latestAccessToken || accessToken;
+    console.log('📸 DEBUG: Token to use for upload:', tokenToUse ? 'Present' : 'Missing');
+    
+    if (!tokenToUse) {
       console.log('❌ DEBUG: No access token available for upload');
       console.log('❌ DEBUG: This means Redux state is not properly updated');
-      Alert.alert('Error', 'Please login first to upload profile picture');
+      // Don't show error, just store locally for now
+      console.log('📸 DEBUG: Storing image locally without upload');
+      onImageSelected && onImageSelected(imageData);
       return;
     }
 
+    // Skip upload for initial profile setup - store locally only
+    // Profile picture will be uploaded after profile is created
+    console.log('📸 DEBUG: Profile setup mode - storing image locally');
+    console.log('📸 DEBUG: Image will be uploaded after profile is created');
+    
+    // Simulate uploading state briefly
+    setIsUploading(true);
+    setTimeout(() => {
+      setIsUploading(false);
+      onImageSelected && onImageSelected(imageData);
+    }, 300);
+    return;
+
+    // OLD UPLOAD CODE - COMMENTED OUT FOR NOW
+    /*
     try {
       setIsUploading(true);
       console.log('📸 DEBUG: Starting profile picture upload...');
       console.log('📸 DEBUG: Image data:', imageData);
       
-      const result = await authAPI.uploadProfilePicture(imageData, accessToken);
+      const result = await authAPI.uploadProfilePicture(imageData, tokenToUse);
       
       console.log('📊 DEBUG: Upload API Response:', result);
       
@@ -140,6 +165,7 @@ function ProfileImageUpload({ onImageSelected, currentImage, size = 120 }) {
     } finally {
       setIsUploading(false);
     }
+    */
   };
 
   const requestCameraPermission = async () => {

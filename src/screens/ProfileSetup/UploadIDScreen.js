@@ -10,6 +10,8 @@ import ErrorModal from '../../components/common/ErrorModal';
 import UploadModal from '../../components/common/UploadModal';
 import PermissionModal from '../../components/common/PermissionModal';
 import { fonts } from '../../styles/typography';
+import { authAPI } from '../../api/authAPI';
+import { useSelector } from 'react-redux';
 
 // Back Icon Component
 const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
@@ -49,7 +51,9 @@ const DropdownArrow = ({ width = 16, height = 16, color = '#8A2BE2' }) => (
 function UploadIDScreen({ navigation }) {
   const [selectedIDType, setSelectedIDType] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadedFileData, setUploadedFileData] = useState(null); // Store actual file data
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [errorModal, setErrorModal] = useState({
     visible: false,
     message: '',
@@ -61,6 +65,9 @@ function UploadIDScreen({ navigation }) {
     title: 'Camera Permission Required',
     message: 'Camera permission is required to take photos. Please enable it in settings.'
   });
+
+  // Get access token from Redux
+  const authState = useSelector((state) => state.auth);
 
   const idTypes = [
     'Driver\'s License',
@@ -193,8 +200,21 @@ function UploadIDScreen({ navigation }) {
         const asset = response.assets[0];
         const timestamp = new Date().toLocaleString();
         const fileName = asset.fileName || `Camera_Photo_${timestamp.replace(/[^\w\s]/gi, '_')}.jpg`;
+        
+        // Store both display name and actual file data
         setUploadedFile(fileName);
-        console.log('Photo taken:', asset.uri);
+        setUploadedFileData({
+          uri: asset.uri,
+          type: asset.type || 'image/jpeg',
+          fileName: fileName,
+        });
+        
+        console.log('📸 Photo taken:', asset.uri);
+        console.log('📸 File data stored:', {
+          uri: asset.uri,
+          type: asset.type,
+          fileName: fileName,
+        });
       }
     });
   };
@@ -218,23 +238,113 @@ function UploadIDScreen({ navigation }) {
         const asset = response.assets[0];
         const timestamp = new Date().toLocaleString();
         const fileName = asset.fileName || `Gallery_Photo_${timestamp.replace(/[^\w\s]/gi, '_')}.jpg`;
+        
+        // Store both display name and actual file data
         setUploadedFile(fileName);
-        console.log('Photo selected:', asset.uri);
+        setUploadedFileData({
+          uri: asset.uri,
+          type: asset.type || 'image/jpeg',
+          fileName: fileName,
+        });
+        
+        console.log('📸 Photo selected:', asset.uri);
+        console.log('📸 File data stored:', {
+          uri: asset.uri,
+          type: asset.type,
+          fileName: fileName,
+        });
       }
     });
   };
 
-  const handleContinue = () => {
-    // Validation commented out for now
-    // if (!selectedIDType) {
-    //   showError('Please select an ID type', 'Selection Required');
-    //   return;
-    // }
-    // if (!uploadedFile) {
-    //   showError('Please upload a document', 'Upload Required');
-    //   return;
-    // }
-    navigation.navigate('Location');
+  const handleContinue = async () => {
+    console.log('🚀 ===== UPLOAD ID API TEST START =====');
+    console.log('📄 DEBUG: handleContinue called');
+    console.log('📄 DEBUG: Selected ID Type:', selectedIDType);
+    console.log('📄 DEBUG: Uploaded File:', uploadedFile);
+    console.log('📄 DEBUG: Uploaded File Data:', uploadedFileData);
+    console.log('📄 DEBUG: Auth State:', {
+      isAuthenticated: authState.isAuthenticated,
+      accessToken: authState.accessToken ? 'Present' : 'Missing',
+      accessTokenLength: authState.accessToken?.length || 0
+    });
+
+    // Check if user is authenticated
+    if (!authState.isAuthenticated || !authState.accessToken) {
+      console.log('❌ DEBUG: User not authenticated or token missing');
+      console.log('❌ DEBUG: isAuthenticated:', authState.isAuthenticated);
+      console.log('❌ DEBUG: accessToken:', authState.accessToken);
+      showError('Please login first to upload ID proof', 'Authentication Required');
+      return;
+    }
+
+    // If no file uploaded, just navigate to next screen
+    if (!uploadedFileData) {
+      console.log('📄 DEBUG: No file uploaded, navigating to next screen');
+      navigation.navigate('Location');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      console.log('📄 DEBUG: Starting ID proof upload...');
+      
+      // Map ID type to document type
+      const documentTypeMap = {
+        'Driver\'s License': 'drivers_license',
+        'Passport': 'passport',
+        'National ID': 'national_id',
+        'State ID': 'state_id',
+        'Military ID': 'military_id'
+      };
+      
+      const documentType = documentTypeMap[selectedIDType] || 'id_proof';
+      console.log('📄 DEBUG: Document Type:', documentType);
+      console.log('📄 DEBUG: Selected ID Type:', selectedIDType);
+      
+      console.log('🌐 DEBUG: About to call authAPI.uploadIDProof');
+      console.log('🌐 DEBUG: Parameters:', {
+        fileData: uploadedFileData,
+        documentType: documentType,
+        token: authState.accessToken ? 'Present' : 'Missing'
+      });
+      
+      // Call upload ID proof API
+      const result = await authAPI.uploadIDProof(uploadedFileData, documentType, authState.accessToken);
+      
+      console.log('📊 DEBUG: Upload ID Proof API Response:', result);
+      console.log('📊 DEBUG: Response Success:', result.success);
+      console.log('📊 DEBUG: Response Data:', result.data);
+      console.log('📊 DEBUG: Response Error:', result.error);
+      
+      if (result.success) {
+        console.log('✅ DEBUG: ID proof uploaded successfully');
+        console.log('✅ DEBUG: Upload URL:', result.data?.data?.url);
+        console.log('✅ DEBUG: Full Success Response:', JSON.stringify(result, null, 2));
+        
+        // Show success message
+        showError('ID proof uploaded successfully!', 'Success');
+        
+        // Navigate to next screen after a short delay
+        setTimeout(() => {
+          navigation.navigate('Location');
+        }, 1500);
+      } else {
+        console.log('❌ DEBUG: ID proof upload failed');
+        console.log('❌ DEBUG: Error:', result.error);
+        console.log('❌ DEBUG: Full Error Response:', JSON.stringify(result, null, 2));
+        showError(result.error || 'Failed to upload ID proof', 'Upload Error');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in handleContinue:', error);
+      console.error('💥 DEBUG: Error type:', typeof error);
+      console.error('💥 DEBUG: Error message:', error.message);
+      console.error('💥 DEBUG: Error stack:', error.stack);
+      showError(error.message || 'Failed to upload ID proof', 'Upload Error');
+    } finally {
+      setIsUploading(false);
+      console.log('🚀 ===== UPLOAD ID API TEST END =====');
+    }
   };
 
   // Memoize gradient colors to prevent re-renders
@@ -337,9 +447,10 @@ function UploadIDScreen({ navigation }) {
 
         <View style={styles.buttonContainer}>
           <CustomButton
-            title="Continue"
+            title={isUploading ? "Uploading..." : "Continue"}
             onPress={handleContinue}
-            style={styles.continueButton}
+            style={[styles.continueButton, isUploading && styles.disabledButton]}
+            disabled={isUploading}
           />
         </View>
       </ScrollView>
@@ -545,6 +656,9 @@ const styles = StyleSheet.create({
     width: '70%',
     alignSelf: 'center',
     borderRadius: 35,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 

@@ -1,11 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import CustomButton from '../../components/common/CustomButton';
 import CommonBackground from '../../components/common/CommonBackground';
 import ErrorModal from '../../components/common/ErrorModal';
+import { authAPI } from '../../api/authAPI';
+import { useSelector } from 'react-redux';
 // Inline SVG Icon Components
 const CameraIcon = ({ width = 20, height = 20, fill = 'white' }) => (
   <Svg width={width} height={height} viewBox="0 0 18 16" fill="none">
@@ -171,6 +173,7 @@ const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
 // Interest Icons
 const InterestIcon = ({ name, size = 20, color = 'white' }) => {
   const iconMap = {
+    // Original icons
     Photography: CameraIcon,
     Cooking: CookingIcon,
     'VDO Games': GameIcon,
@@ -183,12 +186,27 @@ const InterestIcon = ({ name, size = 20, color = 'white' }) => {
     Drinking: WineIcon,
     'Extreme': ExtremIcon,
     Fitness: FitnessIcon,
+    
+    // New API interests with icon mappings
+    Travel: TravellingIcon,
+    Sports: FitnessIcon,
+    Art: ArtIcon,
+    Technology: GameIcon,
+    Reading: ArtIcon,
+    Gaming: GameIcon,
+    Movies: ArtIcon,
+    Dancing: MusicIcon,
+    Writing: ArtIcon,
+    Gardening: ArtIcon,
+    Fashion: ArtIcon,
+    Business: ArtIcon,
+    Education: ArtIcon,
+    Health: FitnessIcon,
+    Nature: ArtIcon,
+    Food: CookingIcon,
   };
 
   const IconComponent = iconMap[name];
-
-  // Debug the import
-  console.log(`Interest: ${name}, IconComponent: ${IconComponent}, Type: ${typeof IconComponent}`);
 
   if (!IconComponent || typeof IconComponent !== 'function') {
     console.warn(`Invalid icon for interest: ${name}, got type: ${typeof IconComponent}`);
@@ -204,26 +222,110 @@ const InterestIcon = ({ name, size = 20, color = 'white' }) => {
 
 function InterestsScreen({ navigation }) {
   const [selectedInterests, setSelectedInterests] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [interestOptions, setInterestOptions] = useState([]);
   const [errorModal, setErrorModal] = useState({
     visible: false,
     message: '',
     title: 'Error'
   });
 
-  const interestOptions = [
-    'Photography',
-    'Cooking',
-    'VDO Games',
-    'Music',
-    'Travelling',
-    'Shopping',
-    'Speeches',
-    'Art & Crafts',
-    'Swimming',
-    'Drinking',
-    'Extreme',
-    'Fitness',
-  ];
+  // Get access token from Redux
+  const authState = useSelector((state) => state.auth);
+
+  // Fetch interests options from catalog API on component mount
+  useEffect(() => {
+    const fetchInterestsOptions = async () => {
+      try {
+        console.log('🎯 DEBUG: Fetching interests options from catalog...');
+        const result = await authAPI.getCatalog(authState.accessToken);
+        
+        if (result.success && result.data?.data?.interests) {
+          console.log('✅ DEBUG: Interests options retrieved:', result.data.data.interests);
+          setInterestOptions(result.data.data.interests);
+        } else {
+          console.log('❌ DEBUG: Failed to get interests options, using fallback');
+          // Fallback to hardcoded options if API fails
+          setInterestOptions([
+            'Photography',
+            'Music',
+            'Travel',
+            'Cooking',
+            'Sports',
+            'Art',
+            'Technology',
+            'Reading',
+            'Gaming',
+            'Fitness',
+            'Movies',
+            'Dancing',
+            'Writing',
+            'Gardening',
+            'Fashion',
+            'Business',
+            'Education',
+            'Health',
+            'Nature',
+            'Food'
+          ]);
+        }
+      } catch (error) {
+        console.error('💥 DEBUG: Exception getting interests options:', error);
+        // Fallback to hardcoded options if API fails
+        setInterestOptions([
+          'Photography',
+          'Music',
+          'Travel',
+          'Cooking',
+          'Sports',
+          'Art',
+          'Technology',
+          'Reading',
+          'Gaming',
+          'Fitness',
+          'Movies',
+          'Dancing',
+          'Writing',
+          'Gardening',
+          'Fashion',
+          'Business',
+          'Education',
+          'Health',
+          'Nature',
+          'Food'
+        ]);
+      }
+    };
+
+    // Only fetch if user is authenticated
+    if (authState.isAuthenticated && authState.accessToken) {
+      fetchInterestsOptions();
+    } else {
+      // Fallback to hardcoded options if not authenticated
+      setInterestOptions([
+        'Photography',
+        'Music',
+        'Travel',
+        'Cooking',
+        'Sports',
+        'Art',
+        'Technology',
+        'Reading',
+        'Gaming',
+        'Fitness',
+        'Movies',
+        'Dancing',
+        'Writing',
+        'Gardening',
+        'Fashion',
+        'Business',
+        'Education',
+        'Health',
+        'Nature',
+        'Food'
+      ]);
+    }
+  }, [authState.isAuthenticated, authState.accessToken]);
 
   const handleInterestToggle = (interest) => {
     setSelectedInterests((prev) => {
@@ -251,12 +353,102 @@ function InterestsScreen({ navigation }) {
     });
   };
 
-  const handleContinue = () => {
-    // if (selectedInterests.length === 0) {
-    //   showError('Please select at least one interest', 'Selection Required');
-    //   return;
-    // }
-    navigation.navigate('UploadID');
+  const handleContinue = async () => {
+    console.log('🚀 ===== INTERESTS UPDATE API TEST START =====');
+    console.log('🎯 DEBUG: handleContinue called');
+    console.log('🎯 DEBUG: Selected Interests:', selectedInterests);
+    console.log('🎯 DEBUG: Auth State:', {
+      isAuthenticated: authState.isAuthenticated,
+      accessToken: authState.accessToken ? 'Present' : 'Missing',
+      accessTokenLength: authState.accessToken?.length || 0
+    });
+
+    // Check if user is authenticated
+    if (!authState.isAuthenticated || !authState.accessToken) {
+      console.log('❌ DEBUG: User not authenticated or token missing');
+      showError('Please login first to update profile', 'Authentication Required');
+      return;
+    }
+
+    // If no interests selected, just navigate to next screen
+    if (selectedInterests.length === 0) {
+      console.log('🎯 DEBUG: No interests selected, navigating to next screen');
+      navigation.navigate('UploadID');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('🎯 DEBUG: Starting interests profile update...');
+      
+      // Prepare profile data with selected interests
+      const profileData = {
+        likes: selectedInterests, // Selected interests from UI
+        interests: selectedInterests, // Same as likes for now
+        preferences: {
+          hereFor: '', // Will be filled in Preferences screen
+          primaryLanguage: '', // Will be filled in Preferences screen
+          secondaryLanguage: '' // Will be filled in Preferences screen
+        },
+        location: {
+          city: '', // Will be filled in Location screen
+          country: '', // Will be filled in Location screen
+          lat: 0, // Will be filled in Location screen
+          lng: 0 // Will be filled in Location screen
+        }
+      };
+      
+      console.log('🎯 DEBUG: Interests Profile Data:', JSON.stringify(profileData, null, 2));
+      
+      console.log('🌐 DEBUG: About to call authAPI.updateUserProfile');
+      console.log('🌐 DEBUG: Parameters:', {
+        profileData: profileData,
+        token: authState.accessToken ? 'Present' : 'Missing'
+      });
+      
+      // Call update profile API with token
+      const result = await authAPI.updateUserProfile(profileData, authState.accessToken);
+      
+      console.log('📊 DEBUG: Update Profile API Response:', result);
+      console.log('📊 DEBUG: Response Success:', result.success);
+      console.log('📊 DEBUG: Response Data:', result.data);
+      console.log('📊 DEBUG: Response Error:', result.error);
+      
+      if (result.success && result.data?.success) {
+        console.log('✅ DEBUG: Interests profile updated successfully');
+        
+        // Check next step from response
+        const nextStep = result.data?.data?.nextStep || result.data?.data?.profileCompletionStep;
+        console.log('📊 DEBUG: Next step:', nextStep);
+        
+        // Navigate to appropriate next screen based on nextStep
+        if (nextStep === 'preferences') {
+          navigation.navigate('Preferences');
+        } else if (nextStep === 'location') {
+          navigation.navigate('Location');
+        } else if (nextStep === 'upload_id') {
+          navigation.navigate('UploadID');
+        } else {
+          // Default to UploadID screen if no specific next step
+          console.log('📊 DEBUG: No specific next step, navigating to UploadID');
+          navigation.navigate('UploadID');
+        }
+      } else {
+        console.log('❌ DEBUG: Interests profile update failed');
+        console.log('❌ DEBUG: Error:', result.error);
+        console.log('❌ DEBUG: Full Error Response:', JSON.stringify(result, null, 2));
+        showError(result.error || 'Failed to update interests', 'Profile Update Error');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in handleContinue:', error);
+      console.error('💥 DEBUG: Error type:', typeof error);
+      console.error('💥 DEBUG: Error message:', error.message);
+      console.error('💥 DEBUG: Error stack:', error.stack);
+      showError(error.message || 'Failed to update interests', 'Profile Update Error');
+    } finally {
+      setIsLoading(false);
+      console.log('🚀 ===== INTERESTS UPDATE API TEST END =====');
+    }
   };
 
   return (
@@ -314,9 +506,10 @@ function InterestsScreen({ navigation }) {
 
         <View style={styles.buttonContainer}>
           <CustomButton
-            title="Continue"
+            title={isLoading ? "Updating..." : "Continue"}
             onPress={handleContinue}
-            style={styles.continueButton}
+            style={[styles.continueButton, isLoading && styles.disabledButton]}
+            disabled={isLoading}
           />
         </View>
       </ScrollView>
@@ -435,6 +628,9 @@ const styles = StyleSheet.create({
     width: '70%',
     alignSelf: 'center',
     borderRadius: 35,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 

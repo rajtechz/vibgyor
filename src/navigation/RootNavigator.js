@@ -4,9 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar, ActivityIndicator, View } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { checkAuthStatus } from '../utils/authUtils';
 import { getInitialRoute } from '../utils/appConfig';
+import { setTokens, setProfileCompletion } from '../redux/slices/authSlice';
 import AuthNavigator from './AuthNavigator';
 import ProfileSetupNavigator from './ProfileSetupNavigator';
 import MainTabNavigator from './MainTabNavigator';
@@ -17,21 +18,45 @@ const Stack = createStackNavigator();
 function RootNavigator() {
   const [initialRoute, setInitialRoute] = useState(null);
   const { currentMode } = useSelector((state) => state.role);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        console.log('🚀 RootNavigator: Initializing app...');
+        
+        // Get auth status from AsyncStorage
+        const authStatus = await checkAuthStatus();
+        console.log('🔍 RootNavigator: Auth status from AsyncStorage:', authStatus);
+        
+        // Initialize Redux state with data from AsyncStorage
+        if (authStatus.isVerified && authStatus.accessToken && authStatus.refreshToken) {
+          console.log('💾 RootNavigator: Restoring Redux state from AsyncStorage');
+          dispatch(setTokens({
+            accessToken: authStatus.accessToken,
+            refreshToken: authStatus.refreshToken,
+            user: null // Will be fetched later if needed
+          }));
+          
+          // Set profile completion status
+          dispatch(setProfileCompletion({
+            isCompleted: authStatus.isProfileSetupDone,
+            step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
+          }));
+        }
+        
+        // Determine initial route
         const route = await getInitialRoute(checkAuthStatus);
         setInitialRoute(route);
-        console.log('App starting with route:', route);
+        console.log('✅ RootNavigator: App starting with route:', route);
       } catch (error) {
-        console.log('Error initializing app:', error);
+        console.log('❌ RootNavigator: Error initializing app:', error);
         setInitialRoute('Auth'); // fallback to auth flow
       }
     };
 
     initializeApp();
-  }, []);
+  }, [dispatch]);
 
   // Conditional Tab Navigator Component
   const ConditionalTabNavigator = () => {

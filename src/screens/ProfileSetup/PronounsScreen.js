@@ -1,11 +1,13 @@
 // src/screens/ProfileSetup/PronounsScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import CustomButton from '../../components/common/CustomButton';
 import ErrorModal from '../../components/common/ErrorModal';
 import CommonBackground from '../../components/common/CommonBackground';
+import { authAPI } from '../../api/authAPI';
+import { useSelector } from 'react-redux';
 
 // Back Icon Component
 const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
@@ -22,21 +24,68 @@ const BackIcon = ({ width = 24, height = 24, color = '#D9D8F3' }) => (
 
 function PronounsScreen({ navigation }) {
   const [selectedPronouns, setSelectedPronouns] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [pronounOptions, setPronounOptions] = useState([]);
   const [errorModal, setErrorModal] = useState({
     visible: false,
     message: '',
     title: 'Error'
   });
 
-  const pronounOptions = [
-    'He/Him',
-    'She/Her',
-    'They/Them',
-    'Xe/Xem',
-    'Ze/Zir',
-    'Fae/Faer',
-    'Ey/Em'
-  ];
+  // Get access token from Redux
+  const authState = useSelector((state) => state.auth);
+
+  // Fetch pronouns options from catalog API on component mount
+  useEffect(() => {
+    const fetchPronounsOptions = async () => {
+      try {
+        console.log('👤 DEBUG: Fetching pronouns options from catalog...');
+        const result = await authAPI.getCatalog(authState.accessToken);
+        
+        if (result.success && result.data?.data?.pronouns) {
+          console.log('✅ DEBUG: Pronouns options retrieved:', result.data.data.pronouns);
+          setPronounOptions(result.data.data.pronouns);
+        } else {
+          console.log('❌ DEBUG: Failed to get pronouns options, using fallback');
+          // Fallback to hardcoded options if API fails
+          setPronounOptions([
+            'he/him',
+            'she/her',
+            'they/them',
+            'ze/zir',
+            'xe/xem',
+            'Other'
+          ]);
+        }
+      } catch (error) {
+        console.error('💥 DEBUG: Exception getting pronouns options:', error);
+        // Fallback to hardcoded options if API fails
+        setPronounOptions([
+          'he/him',
+          'she/her',
+          'they/them',
+          'ze/zir',
+          'xe/xem',
+          'Other'
+        ]);
+      }
+    };
+
+    // Only fetch if user is authenticated
+    if (authState.isAuthenticated && authState.accessToken) {
+      fetchPronounsOptions();
+    } else {
+      // Fallback to hardcoded options if not authenticated
+      setPronounOptions([
+        'he/him',
+        'she/her',
+        'they/them',
+        'ze/zir',
+        'xe/xem',
+        'Other'
+      ]);
+    }
+  }, [authState.isAuthenticated, authState.accessToken]);
 
   const handlePronounSelect = (pronouns) => {
     setSelectedPronouns(pronouns);
@@ -58,12 +107,103 @@ function PronounsScreen({ navigation }) {
     });
   };
 
-  const handleContinue = () => {
-    // if (!selectedPronouns) {
-    //   showError('Please select your pronouns', 'Selection Required');
-    //   return;
-    // }
-    navigation.navigate('Interests');
+  const handleContinue = async () => {
+    console.log('🚀 ===== PRONOUNS UPDATE API TEST START =====');
+    console.log('👤 DEBUG: handleContinue called');
+    console.log('👤 DEBUG: Selected Pronouns:', selectedPronouns);
+    console.log('👤 DEBUG: Auth State:', {
+      isAuthenticated: authState.isAuthenticated,
+      accessToken: authState.accessToken ? 'Present' : 'Missing',
+      accessTokenLength: authState.accessToken?.length || 0
+    });
+
+    // Check if user is authenticated
+    if (!authState.isAuthenticated || !authState.accessToken) {
+      console.log('❌ DEBUG: User not authenticated or token missing');
+      showError('Please login first to update profile', 'Authentication Required');
+      return;
+    }
+
+    // If no pronouns selected, just navigate to next screen
+    if (!selectedPronouns) {
+      console.log('👤 DEBUG: No pronouns selected, navigating to next screen');
+      navigation.navigate('Interests');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('👤 DEBUG: Starting pronouns profile update...');
+      
+      // Prepare profile data with selected pronouns
+      const profileData = {
+        pronouns: selectedPronouns,
+        likes: [], // Will be filled in Interests screen
+        interests: [], // Will be filled in Interests screen
+        preferences: {
+          hereFor: '', // Will be filled in Preferences screen
+          primaryLanguage: '', // Will be filled in Preferences screen
+          secondaryLanguage: '' // Will be filled in Preferences screen
+        },
+        location: {
+          city: '', // Will be filled in Location screen
+          country: '', // Will be filled in Location screen
+          lat: 0, // Will be filled in Location screen
+          lng: 0 // Will be filled in Location screen
+        }
+      };
+      
+      console.log('👤 DEBUG: Pronouns Profile Data:', JSON.stringify(profileData, null, 2));
+      
+      console.log('🌐 DEBUG: About to call authAPI.updateUserProfile');
+      console.log('🌐 DEBUG: Parameters:', {
+        profileData: profileData,
+        token: authState.accessToken ? 'Present' : 'Missing'
+      });
+      
+      // Call update profile API with token
+      const result = await authAPI.updateUserProfile(profileData, authState.accessToken);
+      
+      console.log('📊 DEBUG: Update Profile API Response:', result);
+      console.log('📊 DEBUG: Response Success:', result.success);
+      console.log('📊 DEBUG: Response Data:', result.data);
+      console.log('📊 DEBUG: Response Error:', result.error);
+      
+      if (result.success && result.data?.success) {
+        console.log('✅ DEBUG: Pronouns profile updated successfully');
+        
+        // Check next step from response
+        const nextStep = result.data?.data?.nextStep || result.data?.data?.profileCompletionStep;
+        console.log('📊 DEBUG: Next step:', nextStep);
+        
+        // Navigate to appropriate next screen based on nextStep
+        if (nextStep === 'interests') {
+          navigation.navigate('Interests');
+        } else if (nextStep === 'preferences') {
+          navigation.navigate('Preferences');
+        } else if (nextStep === 'location') {
+          navigation.navigate('Location');
+        } else {
+          // Default to Interests screen if no specific next step
+          console.log('📊 DEBUG: No specific next step, navigating to Interests');
+          navigation.navigate('Interests');
+        }
+      } else {
+        console.log('❌ DEBUG: Pronouns profile update failed');
+        console.log('❌ DEBUG: Error:', result.error);
+        console.log('❌ DEBUG: Full Error Response:', JSON.stringify(result, null, 2));
+        showError(result.error || 'Failed to update pronouns', 'Profile Update Error');
+      }
+    } catch (error) {
+      console.error('💥 DEBUG: Exception in handleContinue:', error);
+      console.error('💥 DEBUG: Error type:', typeof error);
+      console.error('💥 DEBUG: Error message:', error.message);
+      console.error('💥 DEBUG: Error stack:', error.stack);
+      showError(error.message || 'Failed to update pronouns', 'Profile Update Error');
+    } finally {
+      setIsLoading(false);
+      console.log('🚀 ===== PRONOUNS UPDATE API TEST END =====');
+    }
   };
 
   return (
@@ -118,9 +258,10 @@ function PronounsScreen({ navigation }) {
 
         <View style={styles.buttonContainer}>
           <CustomButton
-            title="Continue"
+            title={isLoading ? "Updating..." : "Continue"}
             onPress={handleContinue}
-            style={styles.continueButton}
+            style={[styles.continueButton, isLoading && styles.disabledButton]}
+            disabled={isLoading}
           />
         </View>
       </ScrollView>
@@ -212,6 +353,9 @@ const styles = StyleSheet.create({
     width: '70%',
     alignSelf: 'center',
     borderRadius: 35,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 
