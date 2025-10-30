@@ -11,10 +11,10 @@ const getLocalServerUrl = () => {
   
   if (Platform.OS === 'android') {
     // Android emulator special IP to access host machine
-    return 'http://192.168.1.38:3000';
+    return API_CONFIG.BASE_URL;
   } else {
     // iOS simulator - localhost works fine
-    return 'http://192.168.1.38:3000';
+    return API_CONFIG.BASE_URL;
   }
   
   // For network IP testing (if server is bound to 0.0.0.0):
@@ -25,11 +25,7 @@ const getLocalServerUrl = () => {
 export const authAPI = {
   // Send OTP to phone number
   sendOTP: async (phoneNumber, countryCode = '+91') => {
-    console.log('🔐 AuthAPI: sendOTP called');
-    console.log('📱 Phone Number:', phoneNumber);
-    console.log('🌍 Country Code:', countryCode);
-    console.log('🔗 Endpoint:', API_ENDPOINTS.SEND_OTP);
-    console.log('🌐 Full URL:', `https://vibgyornode.onrender.com${API_ENDPOINTS.SEND_OTP}`);
+   
     
     try {
       const requestData = {
@@ -69,7 +65,7 @@ export const authAPI = {
     console.log('🔢 OTP:', otp);
     console.log('🌍 Country Code:', countryCode);
     console.log('🔗 Endpoint:', API_ENDPOINTS.VERIFY_OTP);
-    console.log('🌐 Full URL:', `https://vibgyornode.onrender.com${API_ENDPOINTS.VERIFY_OTP}`);
+    console.log('🌐 Full URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.VERIFY_OTP}`);
     
     try {
       const requestData = {
@@ -108,7 +104,7 @@ export const authAPI = {
     console.log('🔄 AuthAPI: resendOTP called');
     console.log('📱 Phone Number:', phoneNumber);
     console.log('🔗 Endpoint:', API_ENDPOINTS.RESEND_OTP);
-    console.log('🌐 Full URL:', `https://vibgyornode.onrender.com${API_ENDPOINTS.RESEND_OTP}`);
+    console.log('🌐 Full URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.RESEND_OTP}`);
     
     try {
       const requestData = {
@@ -204,9 +200,9 @@ export const authAPI = {
     console.log('🔑 Token:', token ? 'Present' : 'Missing');
     console.log('🔗 Endpoint:', API_ENDPOINTS.SEND_EMAIL_OTP);
     
-    // Use network IP directly for localhost testing
-    const localUrl = `http://192.168.1.38:3000${API_ENDPOINTS.SEND_EMAIL_OTP}`;
-    console.log('🌐 Using NETWORK IP URL:', localUrl);
+    // For this endpoint only, always hit local backend
+    const localUrl = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.SEND_EMAIL_OTP}`;
+    console.log('🌐 Using LOCAL URL for sendEmailOTP:', localUrl);
 
     try {
       const requestData = {
@@ -275,9 +271,9 @@ export const authAPI = {
     console.log('🔑 Token:', token ? 'Present' : 'Missing');
     console.log('🔗 Endpoint:', API_ENDPOINTS.VERIFY_EMAIL_OTP);
     
-    // Use network IP directly for localhost testing
-    const localUrl = `http://192.168.1.38:3000${API_ENDPOINTS.VERIFY_EMAIL_OTP}`;
-    console.log('🌐 Using NETWORK IP URL:', localUrl);
+    // Use configured BASE_URL (set to local IP as requested)
+    const localUrl = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.VERIFY_EMAIL_OTP}`;
+    console.log('🌐 Using LOCAL URL:', localUrl);
 
     try {
       const requestData = {
@@ -346,9 +342,9 @@ export const authAPI = {
     console.log('🔑 Token:', token ? 'Present' : 'Missing');
     console.log('🔗 Endpoint:', API_ENDPOINTS.SEND_EMAIL_OTP);
     
-    // Use network IP directly for localhost testing
-    const localUrl = `http://192.168.1.38:3000${API_ENDPOINTS.SEND_EMAIL_OTP}`;
-    console.log('🌐 Using NETWORK IP URL:', localUrl);
+    // Use configured BASE_URL (set to local IP as requested)
+    const localUrl = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.SEND_EMAIL_OTP}`;
+    console.log('🌐 Using LOCAL URL:', localUrl);
 
     try {
       const requestData = {
@@ -522,7 +518,7 @@ export const authAPI = {
     console.log('📸 Image Data:', imageData);
     console.log('🔑 Access Token:', accessToken);
     console.log('🔗 Endpoint:', API_ENDPOINTS.UPLOAD_PROFILE_PICTURE);
-    console.log('🌐 Full URL:', `https://vibgyornode.onrender.com${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`);
+    console.log('🌐 Full URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`);
 
     try {
       // Create FormData for file upload
@@ -540,7 +536,7 @@ export const authAPI = {
       }
 
       // Make API call with FormData
-      const response = await fetch(`https://vibgyornode.onrender.com${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,

@@ -1,6 +1,7 @@
 // src/screens/ProfileSetup/PersonalDetailsScreen.js
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, StatusBar, Platform, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, StatusBar, Platform, Alert, KeyboardAvoidingView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LinearGradient from 'react-native-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomButton from '../../components/common/CustomButton';
@@ -44,6 +45,10 @@ function PersonalDetailsScreen({ navigation }) {
   // Get Redux state for debugging
   const authState = useSelector((state) => state.auth);
   const dispatch = useDispatch();
+
+  // Refs (declare after redux hooks to keep stable order)
+  const scrollViewRef = useRef(null);
+  const saveDraftTimerRef = useRef(null);
   
   // Debug Redux state
   useEffect(() => {
@@ -73,6 +78,43 @@ function PersonalDetailsScreen({ navigation }) {
       setFormData(prev => ({ ...prev, email: authState.verifiedEmail }));
     }
   }, [authState.verifiedEmail, authState.emailVerified]);
+
+  // Load draft on mount
+  useEffect(() => {
+    const loadDraft = async () => {
+      try {
+        const draftJson = await AsyncStorage.getItem('personalDetailsDraft');
+        if (draftJson) {
+          const draft = JSON.parse(draftJson);
+          // Only apply fields that exist in draft
+          setFormData((prev) => ({
+            ...prev,
+            ...draft,
+          }));
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    loadDraft();
+  }, []);
+
+  // Persist draft on changes (debounced)
+  useEffect(() => {
+    if (saveDraftTimerRef.current) {
+      clearTimeout(saveDraftTimerRef.current);
+    }
+    saveDraftTimerRef.current = setTimeout(async () => {
+      try {
+        await AsyncStorage.setItem('personalDetailsDraft', JSON.stringify(formData));
+      } catch (_) {}
+    }, 300);
+    return () => {
+      if (saveDraftTimerRef.current) {
+        clearTimeout(saveDraftTimerRef.current);
+      }
+    };
+  }, [formData]);
 
   // Get current profile step on component mount
   useEffect(() => {
@@ -173,9 +215,9 @@ function PersonalDetailsScreen({ navigation }) {
       console.log('📊 DEBUG: Username check result:', result);
       
       if (result.success) {
-        // Assuming the API returns { available: true/false }
-        const isAvailable = result.data?.available !== false;
-        
+        // API shape: { success, status, message, data: { available: boolean, ... } }
+        const isAvailable = !!result.data?.data?.available;
+
         if (isAvailable) {
           console.log('✅ DEBUG: Username is available');
           setUsernameStatus('available');
@@ -278,6 +320,17 @@ function PersonalDetailsScreen({ navigation }) {
     }
   };
 
+  const scrollToEndOnFocus = () => {
+    // Small delay lets the keyboard animate in before scrolling
+    setTimeout(() => {
+      if (scrollViewRef.current?.scrollToEnd) {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      } else if (scrollViewRef.current?.scrollTo) {
+        scrollViewRef.current.scrollTo({ y: 10000, animated: true });
+      }
+    }, 100);
+  };
+
   const handleEmailVerification = async () => {
     console.log('📧 DEBUG: handleEmailVerification called');
     console.log('📧 DEBUG: Email:', formData.email);
@@ -369,8 +422,9 @@ function PersonalDetailsScreen({ navigation }) {
       const result = await authAPI.getUsernameSuggestions(base);
       console.log('📊 DEBUG: Username suggestions result:', result);
       
-      if (result.success && result.data?.suggestions) {
-        setUsernameSuggestions(result.data.suggestions);
+      const suggestions = result.data?.data?.suggestions || [];
+      if (result.success && suggestions.length > 0) {
+        setUsernameSuggestions(suggestions);
         setShowSuggestions(true);
       } else {
         setUsernameSuggestions([]);
@@ -476,6 +530,12 @@ function PersonalDetailsScreen({ navigation }) {
             index: 0,
             routes: [{ name: 'Main' }],
           });
+          // Clear draft and form after successful completion
+          try {
+            await AsyncStorage.removeItem('personalDetailsDraft');
+          } catch (_) {}
+          setFormData({ firstName: '', lastName: '', email: '', dob: '', bio: '', profileImage: null });
+          setEmailVerified(false);
         } else {
           // Navigate to appropriate next screen based on nextStep
           if (nextStep === 'gender') {
@@ -491,6 +551,12 @@ function PersonalDetailsScreen({ navigation }) {
             console.log('📊 DEBUG: No specific next step, navigating to Gender');
             navigation.navigate('Gender');
           }
+          // Clear draft and current form for next user flow
+          try {
+            await AsyncStorage.removeItem('personalDetailsDraft');
+          } catch (_) {}
+          setFormData({ firstName: '', lastName: '', email: '', dob: '', bio: '', profileImage: null });
+          setEmailVerified(false);
         }
       } else {
         console.log('❌ DEBUG: Profile update failed');
@@ -509,20 +575,33 @@ function PersonalDetailsScreen({ navigation }) {
     <CommonBackground style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#140034" />
       
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.select({ ios: 90, android: 0 })}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
+          automaticallyAdjustKeyboardInsets
+          showsVerticalScrollIndicator={false}
+        >
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              // Navigate to Auth screen if no previous screen
-              navigation.navigate('Auth');
-            }
+            // Clear draft and form on back
+            (async () => {
+              try { await AsyncStorage.removeItem('personalDetailsDraft'); } catch (_) {}
+              setFormData({ firstName: '', lastName: '', email: '', dob: '', bio: '', profileImage: null });
+              setEmailVerified(false);
+              setUsernameStatus(null);
+              setUsernameSuggestions([]);
+              setShowSuggestions(false);
+            })();
+            if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate('Auth');
           }}
         >
           <BackIcon width={24} height={24} color="#D9D8F3" />
@@ -554,6 +633,7 @@ function PersonalDetailsScreen({ navigation }) {
                   onChangeText={(text) => handleInputChange('firstName', text)}
                   placeholder="Full Name"
                   placeholderTextColor="white"
+                  onFocus={scrollToEndOnFocus}
                 />
               </LinearGradient>
             </View>
@@ -578,6 +658,7 @@ function PersonalDetailsScreen({ navigation }) {
                     placeholder="User Name"
                     placeholderTextColor="rgba(255, 255, 255, 0.6)"
                     autoCapitalize="none"
+                    onFocus={scrollToEndOnFocus}
                   />
                   {isCheckingUsername && (
                     <Text style={styles.usernameStatusText}>Checking...</Text>
@@ -592,19 +673,22 @@ function PersonalDetailsScreen({ navigation }) {
               </LinearGradient>
             </View>
             
-            {/* Username Suggestions */}
+            {/* Username Suggestions Tooltip */}
             {showSuggestions && usernameSuggestions.length > 0 && (
-              <View style={styles.suggestionsContainer}>
-                <Text style={styles.suggestionsTitle}>Suggested usernames:</Text>
-                {usernameSuggestions.map((suggestion, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.suggestionItem}
-                    onPress={() => handleSuggestionSelect(suggestion)}
-                  >
-                    <Text style={styles.suggestionText}>{suggestion}</Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.suggestionsContainer} pointerEvents="box-none">
+                <ScrollView style={styles.suggestionsScroll} nestedScrollEnabled>
+                  <Text style={styles.suggestionsTitle}>Suggested usernames:</Text>
+                  {usernameSuggestions.map((suggestion, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.suggestionItem}
+                      onPress={() => handleSuggestionSelect(suggestion)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.suggestionText}>{suggestion}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             )}
           </View>
@@ -628,6 +712,7 @@ function PersonalDetailsScreen({ navigation }) {
                     keyboardType="email-address"
                     autoCapitalize="none"
                     editable={!emailVerified}
+                    onFocus={scrollToEndOnFocus}
                   />
                   <TouchableOpacity
                     style={[styles.verifyButton, emailVerified && styles.verifyButtonVerified]}
@@ -708,6 +793,7 @@ function PersonalDetailsScreen({ navigation }) {
                   multiline
                   numberOfLines={1}
                   textAlignVertical="center"
+                  onFocus={scrollToEndOnFocus}
                 />
               </LinearGradient>
             </View>
@@ -724,7 +810,8 @@ function PersonalDetailsScreen({ navigation }) {
             style={styles.continueButton}
           />
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <ErrorModal
         visible={errorModal.visible}
@@ -790,6 +877,7 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 20,
+    position: 'relative',
   },
   label: {
     fontSize: 16,
@@ -933,7 +1021,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a0033',
     borderRadius: 28,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 5,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -963,10 +1051,19 @@ const styles = StyleSheet.create({
   },
   // Suggestions styles
   suggestionsContainer: {
-    marginTop: 10,
-    backgroundColor: 'rgba(26, 0, 51, 0.8)',
+    position: 'absolute',
+    top: 70, // positioned just below the username input
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(12, 1, 22, 0.99)',
     borderRadius: 12,
-    padding: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    zIndex: 999,
+    elevation: 8,
+  },
+  suggestionsScroll: {
+    height: 150,
   },
   suggestionsTitle: {
     fontSize: 14,

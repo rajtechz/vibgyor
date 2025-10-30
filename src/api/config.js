@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: 'http://192.168.1.38:3000',
-  LOCAL_BASE_URL: 'http://192.168.1.38:3000',
+  BASE_URL: 'https://vibgyornode.onrender.com',
+  LOCAL_BASE_URL: 'https://vibgyornode.onrender.com',
   TIMEOUT: 10000,
   HEADERS: {
     'Content-Type': 'application/json',

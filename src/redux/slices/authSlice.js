@@ -295,6 +295,21 @@ const authSlice = createSlice({
         state.isVerifyingOTP = false;
         state.otpVerified = true;
         state.otpError = null;
+        // If backend returns tokens on verify, set and persist them
+        const payloadData = action.payload?.data || action.payload;
+        const accessToken = payloadData?.accessToken;
+        const refreshToken = payloadData?.refreshToken;
+        const user = payloadData?.user;
+        if (accessToken && refreshToken) {
+          state.isAuthenticated = true;
+          state.user = user || state.user;
+          state.accessToken = accessToken;
+          state.refreshToken = refreshToken;
+          import('../../utils/authUtils').then(({ setAuthTokens, setVerificationStatus }) => {
+            setAuthTokens(accessToken, refreshToken);
+            setVerificationStatus(true);
+          });
+        }
       })
       .addCase(verifyOTP.rejected, (state, action) => {
         state.isVerifyingOTP = false;
@@ -314,6 +329,14 @@ const authSlice = createSlice({
         state.accessToken = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
         state.loginError = null;
+        // Persist latest tokens to AsyncStorage to avoid stale tokens
+        if (action.payload.accessToken && action.payload.refreshToken) {
+          import('../../utils/authUtils').then(({ setAuthTokens, setVerificationStatus }) => {
+            setAuthTokens(action.payload.accessToken, action.payload.refreshToken);
+            // User just logged in, mark verified
+            setVerificationStatus(true);
+          });
+        }
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoggingIn = false;
@@ -333,6 +356,11 @@ const authSlice = createSlice({
         state.refreshToken = null;
         state.otpSent = false;
         state.otpVerified = false;
+        // Clear persisted tokens on logout
+        import('../../utils/authUtils').then(({ clearAuthTokens, clearAuthData }) => {
+          clearAuthTokens();
+          clearAuthData();
+        });
       })
       .addCase(logout.rejected, (state, action) => {
         state.isLoggingOut = false;
