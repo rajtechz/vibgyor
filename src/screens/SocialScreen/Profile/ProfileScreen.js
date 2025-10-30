@@ -1,12 +1,14 @@
 // src/screens/Profile/ProfileScreen.js
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, StatusBar, Image, Animated } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, StatusBar, Image, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Rect, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import { clearAuthData } from '../../../utils/authUtils';
+import { authAPI } from '../../../api/authAPI';
 import { AccountVerifyBadge, HamburgerIcon } from '../../../components/icons/SvgIcons';
 import CommonBackground from '../../../components/common/CommonBackground';
 import ModeSwitchHeader from '../../../components/common/ModeSwitchHeader';
@@ -15,7 +17,7 @@ import ReelsTab from '../../../components/profile/ReelsTab';
 
 // Settings Icon Component
 const SettingsIcon = ({ width = 24, height = 24, color = '#B0B0B0' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fil l="none">
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
     <Path
       d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"
       stroke={color}
@@ -180,11 +182,113 @@ const GradientBorder = ({ children, style }) => (
 
 function ProfileScreen() {
   const [activeTab, setActiveTab] = useState('grid');
+  const [profileData, setProfileData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   
+  // Get access token from Redux
+  const authState = useSelector((state) => state.auth);
+  
   // Animation for hamburger button
   const hamburgerScale = useRef(new Animated.Value(1)).current;
+
+  // Fetch user profile on component mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        console.log('👤 ProfileScreen: Fetching user profile...');
+        console.log('🔑 Auth State:', {
+          isAuthenticated: authState.isAuthenticated,
+          accessToken: authState.accessToken ? 'Present' : 'Missing',
+        });
+
+        if (!authState.isAuthenticated || !authState.accessToken) {
+          console.log('❌ ProfileScreen: User not authenticated');
+          setIsLoading(false);
+          return;
+        }
+
+        const result = await authAPI.getUserProfile(authState.accessToken);
+        
+        console.log('🔍 ProfileScreen: Full API Result:', JSON.stringify(result, null, 2));
+        console.log('🔍 ProfileScreen: result.success:', result.success);
+        console.log('🔍 ProfileScreen: result.data:', result.data);
+        console.log('🔍 ProfileScreen: result.data.data:', result.data?.data);
+        
+        if (result.success && result.data?.data) {
+          console.log('✅ ProfileScreen: Profile fetched successfully');
+          console.log('📊 Profile Data:', result.data.data);
+          
+          // Extract and validate profile picture URL
+          const profilePicUrl = result.data.data.profilePictureUrl;
+          console.log('🖼️ Profile Picture URL:', profilePicUrl);
+          console.log('🖼️ URL exists:', !!profilePicUrl);
+          console.log('🖼️ URL is string:', typeof profilePicUrl === 'string');
+          console.log('🖼️ URL length:', profilePicUrl?.length);
+          console.log('🖼️ URL starts with http:', profilePicUrl?.startsWith('http'));
+          
+          // Debug: Check all keys in the data object
+          console.log('🔍 ProfileScreen: Keys in result.data.data:', Object.keys(result.data.data || {}));
+          console.log('🔍 ProfileScreen: Has profilePictureUrl key:', 'profilePictureUrl' in (result.data.data || {}));
+          console.log('🔍 ProfileScreen: profilePictureUrl value directly:', result.data.data?.profilePictureUrl);
+          
+          // Clean and validate URL
+          if (profilePicUrl && typeof profilePicUrl === 'string') {
+            const cleanedUrl = profilePicUrl.trim();
+            if (cleanedUrl && cleanedUrl.startsWith('http')) {
+              console.log('✅ ProfileScreen: Valid profile picture URL found');
+            } else {
+              console.log('⚠️ ProfileScreen: Invalid profile picture URL format');
+              console.log('⚠️ Cleaned URL:', cleanedUrl);
+            }
+          } else {
+            console.log('⚠️ ProfileScreen: profilePictureUrl is missing or invalid');
+            console.log('⚠️ Type:', typeof profilePicUrl);
+            console.log('⚠️ Value:', profilePicUrl);
+          }
+          
+          setProfileData(result.data.data);
+          setImageError(false); // Reset image error when new data is fetched
+        } else {
+          console.log('❌ ProfileScreen: Failed to fetch profile');
+          console.log('❌ Error:', result.error);
+        }
+      } catch (error) {
+        console.error('💥 ProfileScreen: Error fetching profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [authState.isAuthenticated, authState.accessToken]);
+
+  // Debug profile picture URL when profileData changes
+  useEffect(() => {
+    if (profileData) {
+      console.log('🖼️ ProfileScreen: Profile data updated');
+      console.log('🖼️ Profile data keys:', Object.keys(profileData));
+      console.log('🖼️ Has profilePictureUrl:', 'profilePictureUrl' in profileData);
+      console.log('🖼️ profilePictureUrl value:', profileData.profilePictureUrl);
+      console.log('🖼️ profilePictureUrl type:', typeof profileData.profilePictureUrl);
+      console.log('🖼️ profilePictureUrl length:', profileData.profilePictureUrl?.length);
+      
+      if (profileData.profilePictureUrl) {
+        console.log('🖼️ ProfileScreen: Profile picture URL available');
+        console.log('🖼️ URL:', profileData.profilePictureUrl);
+        console.log('🖼️ URL Type:', typeof profileData.profilePictureUrl);
+        console.log('🖼️ URL Length:', profileData.profilePictureUrl?.length);
+        console.log('🖼️ URL Valid:', profileData.profilePictureUrl?.startsWith('http'));
+      } else {
+        console.log('⚠️ ProfileScreen: No profile picture URL in profile data');
+        console.log('⚠️ ProfileData object:', JSON.stringify(profileData, null, 2));
+      }
+    } else {
+      console.log('⚠️ ProfileScreen: No profile data available');
+    }
+  }, [profileData]);
 
   // Handle hamburger button press with animation
   const handleHamburgerPress = () => {
@@ -226,6 +330,11 @@ function ProfileScreen() {
       {/* Header */}
       <ModeSwitchHeader customTitle="Profile" style={{ paddingTop: insets.top }} />
 
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8A52F3" />
+        </View>
+      ) : (
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -233,7 +342,7 @@ function ProfileScreen() {
 
         {/* Username and Menu */}
         <View style={styles.usernameSection}>
-          <Text style={styles.username}>Mathew_ben</Text>
+          <Text style={styles.username}>{profileData?.username || 'Username'}</Text>
           <Animated.View style={{ transform: [{ scale: hamburgerScale }] }}>
             <TouchableOpacity
               style={styles.menuButton}
@@ -247,10 +356,39 @@ function ProfileScreen() {
         {/* Profile Info */}
         <View style={styles.profileInfo}>
           <View style={styles.profileImage}>
-            <Image
-              source={require('../../../assets/messageUser/message1.png')}
-              style={styles.profileImageStyle}
-            />
+            {profileData?.profilePictureUrl && 
+             typeof profileData.profilePictureUrl === 'string' && 
+             profileData.profilePictureUrl.trim().length > 0 && 
+             profileData.profilePictureUrl.trim().startsWith('http') && 
+             !imageError ? (
+              <Image
+                key={profileData.profilePictureUrl} // Force re-render when URL changes
+                source={{ uri: profileData.profilePictureUrl.trim() }}
+                style={styles.profileImageStyle}
+                resizeMode="cover"
+                onLoadStart={() => {
+                  console.log('🖼️ ProfileScreen: Starting to load profile picture');
+                  console.log('🖼️ URL:', profileData.profilePictureUrl);
+                }}
+                onLoad={() => {
+                  console.log('✅ ProfileScreen: Profile picture loaded successfully');
+                  console.log('✅ ProfileScreen: Image dimensions loaded');
+                }}
+                onError={(error) => {
+                  console.log('❌ ProfileScreen: Error loading profile picture');
+                  console.log('❌ Error details:', error.nativeEvent);
+                  console.log('❌ Error message:', error.nativeEvent?.error?.message);
+                  console.log('❌ URL that failed:', profileData.profilePictureUrl);
+                  setImageError(true);
+                }}
+              />
+            ) : (
+              <Image
+                source={require('../../../assets/messageUser/message1.png')}
+                style={styles.profileImageStyle}
+                resizeMode="cover"
+              />
+            )}
           </View>
           <View style={styles.profileRight}>
             <View style={styles.statsContainer}>
@@ -309,16 +447,18 @@ function ProfileScreen() {
         {/* Name and Bio */}
         <View style={styles.nameSection}>
           <View style={styles.nameRow}>
-            <Text style={styles.fullName}>Mathew Ben</Text>
+            <Text style={styles.fullName}>{profileData?.fullName || 'Full Name'}</Text>
             <AccountVerifyBadge width={20} height={20} />
           </View>
-          <Text style={styles.gender}>Female (He/him)</Text>
+          <Text style={styles.gender}>
+            {profileData?.gender || ''} {profileData?.pronouns ? `(${profileData.pronouns})` : ''}
+          </Text>
         </View>
 
         <View style={styles.bioSection}>
           <Text style={styles.bioTitle}>Short Bio</Text>
           <Text style={styles.bioText}>
-            Love music, cooking, swimming, going out, travellig etc. Wanna be friends??
+            {profileData?.bio || 'No bio available'}
           </Text>
         </View>
 
@@ -369,11 +509,18 @@ function ProfileScreen() {
 
       
       </ScrollView>
+      )}
     </CommonBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
   scrollView: {
     flex: 1,
     paddingHorizontal: 20,

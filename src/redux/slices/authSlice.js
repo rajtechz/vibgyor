@@ -193,10 +193,18 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.isAuthenticated = true;
       
-      // Store tokens in AsyncStorage for persistence
+      // Store tokens and auth flags in AsyncStorage for persistence
       if (action.payload.accessToken && action.payload.refreshToken) {
-        import('../../utils/authUtils').then(({ setAuthTokens }) => {
+        import('../../utils/authUtils').then(({ setAuthTokens, setVerificationStatus, setProfileSetupStatus }) => {
           setAuthTokens(action.payload.accessToken, action.payload.refreshToken);
+          
+          // Set verification status to true when tokens are set (user is verified)
+          setVerificationStatus(true);
+          
+          // Set profile completion status based on user data
+          const isProfileCompleted = action.payload.user?.isProfileCompleted || false;
+          console.log('💾 Redux: Saving profile completion status:', isProfileCompleted);
+          setProfileSetupStatus(isProfileCompleted);
         });
       }
       
@@ -225,6 +233,13 @@ const authSlice = createSlice({
       console.log('👤 Redux: Payload:', action.payload);
       state.isProfileCompleted = action.payload.isCompleted;
       state.profileCompletionStep = action.payload.step;
+      
+      // Store profile completion status in AsyncStorage
+      import('../../utils/authUtils').then(({ setProfileSetupStatus }) => {
+        setProfileSetupStatus(action.payload.isCompleted);
+        console.log('💾 Redux: Profile completion status saved to AsyncStorage:', action.payload.isCompleted);
+      });
+      
       console.log('✅ Redux: Profile completion status saved successfully');
     },
     
@@ -332,13 +347,27 @@ const authSlice = createSlice({
       })
       .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.isRefreshingToken = false;
+        
+        // Handle nested API response structure (response.data.data.accessToken)
+        const responseData = action.payload?.data || action.payload;
+        const newAccessToken = responseData?.accessToken || action.payload?.accessToken;
+        const newRefreshToken = responseData?.refreshToken || action.payload?.refreshToken;
+        
         // Update access token with new token from response
-        if (action.payload?.accessToken) {
-          state.accessToken = action.payload.accessToken;
+        if (newAccessToken) {
+          state.accessToken = newAccessToken;
           console.log('✅ Redux: Access token refreshed successfully');
+          
+          // Store new access token in AsyncStorage
+          import('../../utils/authUtils').then(({ setAuthTokens }) => {
+            setAuthTokens(
+              newAccessToken,
+              newRefreshToken || state.refreshToken
+            );
+          });
         }
-        if (action.payload?.refreshToken) {
-          state.refreshToken = action.payload.refreshToken;
+        if (newRefreshToken) {
+          state.refreshToken = newRefreshToken;
           console.log('✅ Redux: Refresh token updated successfully');
         }
         state.error = null;

@@ -118,7 +118,7 @@ function LoginScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.contentContainer}>
           <Text style={styles.title}>Login</Text>
-          <Text style={styles.subtitle}>Please enter your valid phone number. We will send you a 4-digit code to verify.</Text>
+          <Text style={styles.subtitle}>Please enter your valid phone number. We will send you a 6-digit code to verify.</Text>
 
           <View style={styles.inputGroup}>
             <LinearGradient

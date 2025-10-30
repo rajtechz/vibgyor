@@ -783,6 +783,64 @@ export const authAPI = {
       };
     }
   },
+
+  // Get User Profile
+  getUserProfile: async (token) => {
+    console.log('👤 AuthAPI: getUserProfile called');
+    console.log('🔑 Token:', token ? 'Present' : 'Missing');
+
+    if (!token) {
+      console.log('❌ DEBUG: Missing token');
+      return {
+        success: false,
+        error: 'Missing required token',
+        message: 'Failed to get user profile',
+      };
+    }
+
+    try {
+      console.log('🌐 Making request to:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.GET_USER_PROFILE}`);
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.GET_USER_PROFILE}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('📡 Response Status:', response.status);
+      console.log('📡 Response OK:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('❌ Response Error Text:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const responseData = await response.json();
+      console.log('✅ AuthAPI: getUserProfile success');
+      console.log('📊 Response Data:', JSON.stringify(responseData, null, 2));
+
+      return {
+        success: true,
+        data: responseData,
+        message: 'User profile retrieved successfully',
+      };
+    } catch (error) {
+      console.log('❌ AuthAPI: getUserProfile error');
+      console.log('💥 Error Type:', typeof error);
+      console.log('💥 Error Message:', error.message);
+      console.log('💥 Error Stack:', error.stack);
+      console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
+
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to get user profile',
+      };
+    }
+  },
 };
 
 export default authAPI;
