@@ -5,9 +5,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar, ActivityIndicator, View } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import { checkAuthStatus } from '../utils/authUtils';
+import { checkAuthStatus, isTokenExpired } from '../utils/authUtils';
 import { getInitialRoute } from '../utils/appConfig';
-import { setTokens, setProfileCompletion } from '../redux/slices/authSlice';
+import { setTokens, setProfileCompletion, refreshAccessToken } from '../redux/slices/authSlice';
 import AuthNavigator from './AuthNavigator';
 import ProfileSetupNavigator from './ProfileSetupNavigator';
 import MainTabNavigator from './MainTabNavigator';
@@ -30,13 +30,53 @@ function RootNavigator() {
         console.log('🔍 RootNavigator: Auth status from AsyncStorage:', authStatus);
         
         // Initialize Redux state with data from AsyncStorage
-        if (authStatus.isVerified && authStatus.accessToken && authStatus.refreshToken) {
+        // Check tokens first, even if isVerified is false (in case of app refresh before flags were saved)
+        if (authStatus.accessToken && authStatus.refreshToken) {
           console.log('💾 RootNavigator: Restoring Redux state from AsyncStorage');
-          dispatch(setTokens({
-            accessToken: authStatus.accessToken,
-            refreshToken: authStatus.refreshToken,
-            user: null // Will be fetched later if needed
-          }));
+          
+          // If tokens exist but isVerified is false, set it to true
+          if (!authStatus.isVerified) {
+            console.log('⚠️ RootNavigator: Tokens found but isVerified is false, setting to true');
+            const { setVerificationStatus } = await import('../utils/authUtils');
+            await setVerificationStatus(true);
+            authStatus.isVerified = true;
+          }
+          
+          // Check if access token is expired
+          if (isTokenExpired(authStatus.accessToken)) {
+            console.log('⚠️ RootNavigator: Access token expired, refreshing...');
+            try {
+              const refreshResult = await dispatch(refreshAccessToken(authStatus.refreshToken));
+              
+              if (refreshAccessToken.fulfilled.match(refreshResult)) {
+                console.log('✅ RootNavigator: Token refreshed successfully');
+                const newAccessToken = refreshResult.payload?.accessToken || authStatus.accessToken;
+                const newRefreshToken = refreshResult.payload?.refreshToken || authStatus.refreshToken;
+                
+                dispatch(setTokens({
+                  accessToken: newAccessToken,
+                  refreshToken: newRefreshToken,
+                  user: null
+                }));
+              } else {
+                console.log('❌ RootNavigator: Token refresh failed, redirecting to login');
+                // Token refresh failed, user needs to login again
+                setInitialRoute('Auth');
+                return;
+              }
+            } catch (error) {
+              console.error('💥 RootNavigator: Error refreshing token:', error);
+              setInitialRoute('Auth');
+              return;
+            }
+          } else {
+            // Token is still valid, restore it
+            dispatch(setTokens({
+              accessToken: authStatus.accessToken,
+              refreshToken: authStatus.refreshToken,
+              user: null // Will be fetched later if needed
+            }));
+          }
           
           // Set profile completion status
           dispatch(setProfileCompletion({

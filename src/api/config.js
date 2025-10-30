@@ -34,6 +34,7 @@ export const API_ENDPOINTS = {
   
           // Profile endpoints
           UPDATE_USER_PROFILE: '/user/auth/profile',
+          GET_USER_PROFILE: '/user/auth/profile',
           GET_PROFILE_STEP: '/user/auth/profile/step',
           UPLOAD_ID_PROOF: '/user/upload/id-proof',
           GET_CATALOG: '/user/catalog',
