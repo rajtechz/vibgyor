@@ -519,7 +519,6 @@ export default function HomeScreen() {
                 visible={showVerifyModal}
                 onClose={handleCloseModal}
             />
-
             {/* Instagram Media Picker */}
             <InstagramMediaPicker
                 visible={showInstagramPicker}
@@ -529,22 +528,7 @@ export default function HomeScreen() {
 
             {/* Notification Bar */}
             <NotificationBar navigation={navigation} />
-
-            {/* Floating Action Button */}
-            <TouchableOpacity 
-                style={styles.fab}
-                onPress={handleCreatePost}
-                activeOpacity={0.8}
-            >
-                <LinearGradient
-                    colors={['#C53E8D', '#8A52F3']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.fabGradient}
-                >
-                    <Text style={styles.fabText}>+</Text>
-                </LinearGradient>
-            </TouchableOpacity>
+          
         </View>
     );
 }

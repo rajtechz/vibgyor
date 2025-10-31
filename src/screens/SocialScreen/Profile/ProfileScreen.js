@@ -261,10 +261,11 @@ function ProfileScreen() {
         setIsLoading(false);
       }
     };
-
     fetchProfile();
   }, [authState.isAuthenticated, authState.accessToken]);
-
+  // Derive followers/following counts from profileData
+  const followingCount = Array.isArray(profileData?.following) ? profileData.following.length : 0;
+  const followersCount = Array.isArray(profileData?.followers) ? profileData.followers.length : 0;
   // Debug profile picture URL when profileData changes
   useEffect(() => {
     if (profileData) {
@@ -375,10 +376,7 @@ function ProfileScreen() {
                   console.log('✅ ProfileScreen: Image dimensions loaded');
                 }}
                 onError={(error) => {
-                  console.log('❌ ProfileScreen: Error loading profile picture');
-                  console.log('❌ Error details:', error.nativeEvent);
-                  console.log('❌ Error message:', error.nativeEvent?.error?.message);
-                  console.log('❌ URL that failed:', profileData.profilePictureUrl);
+                  
                   setImageError(true);
                 }}
               />
@@ -396,14 +394,14 @@ function ProfileScreen() {
                 style={styles.statItem}
                 onPress={() => navigation.navigate('MyFollowing')}
               >
-                <Text style={styles.statNumber}>15K</Text>
+                <Text style={styles.statNumber}>{followingCount}</Text>
                 <Text style={styles.statLabel}>Following</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.statItem}
                 onPress={() => navigation.navigate('MyFollowers')}
               >
-                <Text style={styles.statNumber}>200K</Text>
+                <Text style={styles.statNumber}>{followersCount}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
               </TouchableOpacity>
             </View>
