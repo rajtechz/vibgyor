@@ -17,7 +17,7 @@ import CustomButton from '../../../components/common/CustomButton';
 import { colors } from '../../../styles/colors';
 import { fonts } from '../../../styles/typography';
 import MaskedView from '@react-native-masked-view/masked-view';
-import { clearAuthData } from '../../../utils/authUtils';
+import { clearAuth } from '../../../redux/slices/authSlice';
 import { setSettingsScreenActive } from '../../../redux/slices/uiSlice';
 import { 
     BackIcon, 
@@ -106,8 +106,9 @@ function SettingsScreen() {
 
     const handleLogOut = async () => {
         try {
-            await clearAuthData();
-            // Navigate to login screen or reset navigation stack
+            // Clear Redux auth state and AsyncStorage via slice
+            dispatch(clearAuth());
+            // Reset navigation stack to Auth
             navigation.reset({
                 index: 0,
                 routes: [{ name: 'Auth' }],

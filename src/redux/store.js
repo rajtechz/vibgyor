@@ -33,9 +33,7 @@ const store = configureStore({
     }),
 });
 
-console.log('✅ Store.js: Store created successfully');
-console.log('📦 Store.js: Store object:', store);
-console.log('📦 Store.js: Store type:', typeof store);
+
 
 export { store };
 
