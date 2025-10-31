@@ -15,8 +15,10 @@ class MediaStoreService {
     return true;
   }
 
-  // Fetch images from device gallery using MediaStore
-  async fetchGalleryImages() {
+  // Fetch images/videos from device gallery with simple pagination and filtering
+  // options: { offset?: number, limit?: number, filterType?: 'image' | 'video' | null }
+  async fetchGalleryImages(options = {}) {
+    const { offset = 0, limit = null, filterType = null } = options; // null = no limit, get all images
     // Instagram style - always try to get real images first
     this.permissionsGranted = true;
 
@@ -24,7 +26,7 @@ class MediaStoreService {
       if (Platform.OS === 'android') {
         // Add timeout to prevent hanging
         const images = await Promise.race([
-          this.fetchAndroidImages(),
+          this.fetchAndroidImages({ offset, limit, filterType }),
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Media scan timeout')), 10000)
           )
@@ -35,7 +37,7 @@ class MediaStoreService {
           return images;
         }
       } else {
-        const images = await this.fetchIOSImages();
+        const images = await this.fetchIOSImages({ offset, limit, filterType });
         if (images.length > 0) {
           console.log('✅ Found real iOS images:', images.length);
           return images;
@@ -58,8 +60,8 @@ class MediaStoreService {
     return [];
   }
 
-  // Android MediaStore implementation - fetch real device photos
-  async fetchAndroidImages() {
+  // Android MediaStore implementation - fetch real device media with pagination
+  async fetchAndroidImages({ offset = 0, limit = null, filterType = null } = {}) {
     try {
       console.log('🔍 Starting Android media scan...');
       
@@ -67,34 +69,56 @@ class MediaStoreService {
       const externalPath = RNFS.ExternalStorageDirectoryPath;
       console.log('📱 External storage path:', externalPath);
       
-      // Try to read from ALL possible Android photo directories
+      // Prioritize most common directories first for faster scanning
+      // Most users have photos in DCIM/Camera, so scan that first
+      // Also prioritize video-specific folders
       const directories = [
-        RNFS.DCIMDirectoryPath,
-        RNFS.PicturesDirectoryPath,
-        externalPath + '/DCIM',
-        externalPath + '/DCIM/Camera',
-        externalPath + '/Pictures',
-        externalPath + '/Download',
-        externalPath + '/WhatsApp/Media/WhatsApp Images',
-        externalPath + '/WhatsApp/Media/WhatsApp Video',
-        externalPath + '/Telegram',
-        externalPath + '/Instagram',
-        externalPath + '/Snapchat',
-        externalPath + '/Screenshots',
-        externalPath + '/Movies',
-      ];
+        RNFS.DCIMDirectoryPath + '/Camera', // Most common - scan first (photos + videos)
+        RNFS.DCIMDirectoryPath, // Camera folder parent (may contain videos)
+        externalPath ? externalPath + '/DCIM/Camera' : undefined, // Alternative camera path
+        externalPath ? externalPath + '/DCIM' : undefined,
+        externalPath ? externalPath + '/Movies' : undefined, // Primary videos folder
+        RNFS.PicturesDirectoryPath, // Pictures folder (may contain videos too)
+        externalPath ? externalPath + '/Pictures' : undefined,
+        externalPath ? externalPath + '/Videos' : undefined, // Alternative videos folder
+        externalPath ? externalPath + '/Video' : undefined, // Another videos folder variant
+        externalPath ? externalPath + '/Download' : undefined,
+        externalPath ? externalPath + '/Screenshots' : undefined,
+        // Social media folders - scan only if needed (slower)
+        externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Video' : undefined, // WhatsApp videos
+        externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Images' : undefined,
+        externalPath ? externalPath + '/Telegram' : undefined,
+        externalPath ? externalPath + '/Instagram' : undefined,
+        externalPath ? externalPath + '/Snapchat' : undefined,
+      ].filter(Boolean);
 
       const allImages = [];
+      const scanState = { hasLimit: limit !== null, limit: limit || Infinity, stop: false };
       let totalScanned = 0;
 
+      // Scan directories with early stopping if limit reached
       for (const dir of directories) {
+        // Stop early if we have enough items and limit is set
+        if (scanState.hasLimit && allImages.length >= scanState.limit) {
+          console.log(`⏸️ Reached limit of ${scanState.limit}, stopping scan`);
+          scanState.stop = true;
+          break;
+        }
+        if (scanState.stop && scanState.hasLimit) break;
+        
         try {
           console.log('📂 Scanning directory:', dir);
           const dirExists = await RNFS.exists(dir);
           if (dirExists) {
-            await this.scanDirectoryRecursively(dir, allImages);
+            await this.scanDirectoryRecursively(dir, allImages, 0, scanState, filterType);
             totalScanned++;
-            console.log(`✅ Directory ${dir} scanned successfully`);
+            console.log(`✅ Directory ${dir} scanned - Found ${allImages.length} items so far`);
+            
+            // Stop early if we have enough
+            if (scanState.hasLimit && allImages.length >= scanState.limit) {
+              console.log(`⏸️ Reached limit after scanning ${dir}`);
+              break;
+            }
           } else {
             console.log(`❌ Directory ${dir} does not exist`);
           }
@@ -107,10 +131,26 @@ class MediaStoreService {
       allImages.sort((a, b) => b.created - a.created);
 
       console.log(`🎉 SCAN COMPLETE! Found ${allImages.length} media files from ${totalScanned} directories`);
-      console.log(`📱 Media types: ${allImages.filter(i => i.type === 'image').length} photos, ${allImages.filter(i => i.type === 'video').length} videos`);
+      const imageCount = allImages.filter(i => i.type === 'image').length;
+      const videoCount = allImages.filter(i => i.type === 'video').length;
+      console.log(`📱 Media types: ${imageCount} photos, ${videoCount} videos`);
       
-      // Return ALL real images - no limits
-      return allImages;
+      // Debug: Log first few videos found
+      const videos = allImages.filter(i => i.type === 'video').slice(0, 5);
+      if (videos.length > 0) {
+        console.log(`🎥 Sample videos found:`);
+        videos.forEach(v => console.log(`   - ${v.fileName || v.uri}`));
+      } else {
+        console.log(`⚠️ WARNING: No videos found! Check permissions and video file extensions.`);
+      }
+      
+      // Apply offset and limit after scanning all images
+      const startIndex = Math.max(0, offset);
+      const endIndex = limit !== null ? startIndex + limit : undefined;
+      const result = endIndex !== undefined ? allImages.slice(startIndex, endIndex) : allImages.slice(startIndex);
+      
+      console.log(`📊 Returning ${result.length} media items (offset: ${offset}, limit: ${limit || 'unlimited'})`);
+      return result;
 
     } catch (error) {
       console.error('❌ Error fetching Android images:', error);
@@ -119,7 +159,7 @@ class MediaStoreService {
   }
 
   // iOS PhotoKit implementation (simplified)
-  async fetchIOSImages() {
+  async fetchIOSImages({ offset = 0, limit = null, filterType = null } = {}) {
     try {
       // For iOS, we'll use a different approach
       // This is a simplified version - in production you'd use react-native-photos
@@ -127,7 +167,10 @@ class MediaStoreService {
       const files = await RNFS.readDir(documentsPath);
       
       const images = files
-        .filter(file => this.isImageFile(file.name))
+        .filter(file => {
+          if (filterType === 'video') return false;
+          return this.isImageFile(file.name);
+        })
         .map(file => ({
           id: file.name + '_' + file.ctime,
           uri: 'file://' + file.path,
@@ -137,10 +180,14 @@ class MediaStoreService {
           type: 'image',
           isVideo: false,
         }))
-        .sort((a, b) => b.created - a.created)
-        .slice(0, 50);
-
-      return images.length > 0 ? images : this.getSampleImages();
+        .sort((a, b) => b.created - a.created);
+      
+      // Apply offset and limit after sorting
+      const startIndex = Math.max(0, offset);
+      const endIndex = limit !== null ? startIndex + limit : undefined;
+      const result = endIndex !== undefined ? images.slice(startIndex, endIndex) : images.slice(startIndex);
+      
+      return result.length > 0 ? result : this.getSampleImages();
     } catch (error) {
       console.error('Error fetching iOS images:', error);
       return this.getSampleImages();
@@ -148,7 +195,7 @@ class MediaStoreService {
   }
 
   // Recursively scan directory for images
-  async scanDirectoryRecursively(dirPath, allImages, depth = 0) {
+  async scanDirectoryRecursively(dirPath, allImages, depth = 0, scanState = { hasLimit: false, limit: Infinity, stop: false }, filterType = null) {
     try {
       // Limit recursion depth to avoid infinite loops
       if (depth > 3) {
@@ -156,10 +203,15 @@ class MediaStoreService {
         return;
       }
 
+      if (scanState.stop && scanState.hasLimit && allImages.length >= scanState.limit) return;
+
       const files = await RNFS.readDir(dirPath);
       console.log(`📁 Found ${files.length} items in ${dirPath}`);
       
       for (const file of files) {
+        // Only stop if we have a limit and reached it
+        if (scanState.stop && scanState.hasLimit && allImages.length >= scanState.limit) break;
+        
         if (file.isDirectory()) {
           // Skip system directories that might cause issues
           if (file.path.includes('/Android/data/') && !file.path.includes('/DCIM/') && !file.path.includes('/Pictures/')) {
@@ -167,14 +219,27 @@ class MediaStoreService {
           }
           
           // Recursively scan subdirectories
-          await this.scanDirectoryRecursively(file.path, allImages, depth + 1);
+          await this.scanDirectoryRecursively(file.path, allImages, depth + 1, scanState, filterType);
         } else {
           // Check for both image and video files
           let mediaType = null;
-          if (this.isImageFile(file.name)) {
-            mediaType = 'image';
-          } else if (this.isVideoFile(file.name)) {
+          
+          // Check video first if no filter or filter is video (videos are less common)
+          if ((filterType === null || filterType === 'video') && this.isVideoFile(file.name)) {
             mediaType = 'video';
+          } else if ((filterType === null || filterType === 'image') && this.isImageFile(file.name)) {
+            mediaType = 'image';
+          }
+          
+          // Also check file path for video indicators if filename doesn't have extension
+          if (!mediaType && file.path) {
+            const lowerPath = file.path.toLowerCase();
+            // Check if path contains video-related folders or patterns
+            if (lowerPath.includes('/video') || lowerPath.includes('/movies') || 
+                lowerPath.includes('/camera') || lowerPath.includes('/dcim')) {
+              // Try to detect by file size (videos are typically larger) or MIME type if available
+              // For now, skip files without extensions to avoid false positives
+            }
           }
 
           if (mediaType) {
@@ -189,9 +254,28 @@ class MediaStoreService {
                 type: mediaType,
                 isVideo: mediaType === 'video',
               };
-              
+
+              // Always add to allImages - we'll apply limit later
               allImages.push(mediaItem);
-              console.log(`📸 Added ${mediaType}: ${file.name}`);
+              
+              // Log videos when found for debugging
+              if (mediaType === 'video') {
+                console.log(`🎥 Found video: ${file.name}`);
+              }
+              
+              // Log periodically to show progress
+              if (allImages.length % 50 === 0) {
+                const imageCount = allImages.filter(i => i.type === 'image').length;
+                const videoCount = allImages.filter(i => i.type === 'video').length;
+                console.log(`📸 Scanned ${allImages.length} media files (${imageCount} images, ${videoCount} videos)...`);
+              }
+              
+              // Optional: Stop early if limit is set (but scan more for better sorting)
+              if (scanState.hasLimit && allImages.length >= scanState.limit * 1.2) {
+                scanState.stop = true; // Stop scanning once we have enough for good sorting
+                console.log(`⏸️ Reached scan limit, stopping early for performance`);
+                break;
+              }
             } catch (statError) {
               console.warn('⚠️ Error getting file stats for:', file.name, statError.message);
             }
@@ -212,9 +296,32 @@ class MediaStoreService {
 
   // Check if file is a video
   isVideoFile(filename) {
-    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.3gp', '.m4v', '.wmv', '.flv', '.mpeg', '.mpg'];
-    const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-    return videoExtensions.includes(ext);
+    if (!filename) return false;
+    
+    const lowerName = filename.toLowerCase();
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.3gp', '.m4v', '.wmv', '.flv', '.mpeg', '.mpg', '.ts', '.mts', '.m2ts'];
+    
+    // Get extension
+    const lastDot = lowerName.lastIndexOf('.');
+    if (lastDot === -1 || lastDot === lowerName.length - 1) {
+      // No extension found - could be a video file without extension (uncommon but possible)
+      return false;
+    }
+    
+    const ext = lowerName.substring(lastDot);
+    
+    // Check if it's a video extension
+    if (videoExtensions.includes(ext)) {
+      return true;
+    }
+    
+    // Also check for video file patterns in filename (e.g., "VID_20240101_123456")
+    if (lowerName.startsWith('vid_') || lowerName.startsWith('video_') || 
+        lowerName.startsWith('movie_') || lowerName.includes('_video_')) {
+      return true;
+    }
+    
+    return false;
   }
 
   // No more sample images - we want real gallery only

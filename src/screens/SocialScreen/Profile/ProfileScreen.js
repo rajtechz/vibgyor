@@ -349,7 +349,7 @@ function ProfileScreen() {
               style={styles.menuButton}
               onPress={handleHamburgerPress}
             >
-              <ProfileHamburgerIcon width={24} height={24} />
+              <ProfileHamburgerIcon width={24} height={24} /> 
             </TouchableOpacity>
           </Animated.View>
         </View>

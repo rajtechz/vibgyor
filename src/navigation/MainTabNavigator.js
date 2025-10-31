@@ -16,8 +16,8 @@ import { ActiveIndicator } from '../components/common/ActiveIndicator';
 import HomeStackNavigator from './HomeStackNavigator';
 import ProfileStackNavigator from './ProfileStackNavigator';
 import MessagesStackNavigator from './MessagesStackNavigator';
+import PostStackNavigator from './PostStackNavigator';
 import SearchScreen from '../screens/SocialScreen/Search/SearchScreen';
-import PostScreen from '../screens/SocialScreen/Post/PostScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -157,7 +157,7 @@ function MainTabNavigator() {
       />
       <Tab.Screen
         name="Post"
-        component={PostScreen}
+        component={PostStackNavigator}
         options={{
           tabBarIcon: PostIconGradient
         }}

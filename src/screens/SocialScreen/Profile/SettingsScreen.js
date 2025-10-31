@@ -17,8 +17,10 @@ import CustomButton from '../../../components/common/CustomButton';
 import { colors } from '../../../styles/colors';
 import { fonts } from '../../../styles/typography';
 import MaskedView from '@react-native-masked-view/masked-view';
-import { clearAuthData } from '../../../utils/authUtils';
+import { clearAuthData, clearAuthTokens } from '../../../utils/authUtils';
 import { setSettingsScreenActive } from '../../../redux/slices/uiSlice';
+import { clearAuth } from '../../../redux/slices/authSlice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
     BackIcon, 
     ArrowRightIcon, 
@@ -106,14 +108,52 @@ function SettingsScreen() {
 
     const handleLogOut = async () => {
         try {
+            console.log('🚪 SettingsScreen: Logging out...');
+            
+            // Step 1: Clear all AsyncStorage data
+            console.log('🧹 SettingsScreen: Clearing all AsyncStorage...');
+            try {
+                // Get all keys
+                const allKeys = await AsyncStorage.getAllKeys();
+                console.log('🧹 SettingsScreen: Found keys to clear:', allKeys);
+                
+                // Remove all keys
+                await AsyncStorage.multiRemove(allKeys);
+                console.log('✅ SettingsScreen: All AsyncStorage cleared');
+            } catch (storageError) {
+                console.error('❌ SettingsScreen: Error clearing AsyncStorage:', storageError);
+                // Continue with logout even if storage clear fails
+            }
+            
+            // Step 2: Clear auth utilities (tokens, verification status, etc.)
+            console.log('🧹 SettingsScreen: Clearing auth utilities...');
+            await clearAuthTokens();
             await clearAuthData();
-            // Navigate to login screen or reset navigation stack
+            
+            // Step 3: Clear Redux state
+            console.log('🧹 SettingsScreen: Clearing Redux state...');
+            dispatch(clearAuth());
+            
+            // Step 4: Navigate to login screen and reset navigation stack
+            console.log('🚪 SettingsScreen: Navigating to Auth screen...');
             navigation.reset({
                 index: 0,
                 routes: [{ name: 'Auth' }],
             });
+            
+            console.log('✅ SettingsScreen: Logout completed successfully');
         } catch (error) {
-            console.error('Error during logout:', error);
+            console.error('❌ SettingsScreen: Error during logout:', error);
+            // Even if there's an error, try to navigate to login
+            try {
+                dispatch(clearAuth());
+                navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Auth' }],
+                });
+            } catch (navError) {
+                console.error('❌ SettingsScreen: Error navigating to Auth:', navError);
+            }
         }
     };
 
@@ -189,8 +229,7 @@ function SettingsScreen() {
                     <Animated.View style={{ transform: [{ scale: backButtonScale }] }}>
                         <TouchableOpacity
                             style={styles.backButton}
-                            onPress={handleBackPress}
-                        >
+                            onPress={handleBackPress}>
                             <BackIcon width={24} height={24} color="#D9D8F3" />
                         </TouchableOpacity>
                     </Animated.View>
@@ -204,7 +243,6 @@ function SettingsScreen() {
                         if (!optionScales[option.id]) {
                             optionScales[option.id] = new Animated.Value(1);
                         }
-                        
                         return (
                             <Animated.View
                                 key={option.id}
@@ -244,7 +282,7 @@ function SettingsScreen() {
                                 <MaskedView
                                     maskElement={
                                         <Text style={[styles.logoutButtonText, { backgroundColor: 'transparent' }]}>
-                                            Log Out
+                                            Log Out 
                                         </Text>
                                     }
                                     style={styles.maskedViewContainer}
@@ -256,7 +294,7 @@ function SettingsScreen() {
                                         style={styles.gradientTextContainer}
                                     >
                                         <Text style={[styles.logoutButtonText, { opacity: 0 }]}>
-                                            Log Out
+                                            Log Out 
                                         </Text>
                                     </LinearGradient>
                                 </MaskedView>

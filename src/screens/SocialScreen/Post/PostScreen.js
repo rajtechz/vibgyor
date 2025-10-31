@@ -1,11 +1,15 @@
 // src/screens/Post/PostScreen.js
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, StatusBar, Image, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, StatusBar, Image, Dimensions, Alert, Platform, PermissionsAndroid, ActivityIndicator, Linking, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { useNavigation } from '@react-navigation/native';
 import CommonBackground from '../../../components/common/CommonBackground';
 import ModeSwitchHeader from '../../../components/common/ModeSwitchHeader';
+import MediaStoreService from '../../../services/MediaStoreService';
 import { colors, gradients } from '../../../styles/colors';
 
 const { width } = Dimensions.get('window');
@@ -111,34 +115,472 @@ const PostCard = ({ author, time, content, likes, comments }) => (
 );
 
 function PostScreen() {
+  const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState('Vibes');
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [allMedia, setAllMedia] = useState([]); // Store all media (images + videos)
+  const [mediaFilter, setMediaFilter] = useState('recent'); // 'recent', 'photo', 'video'
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
+  const [hasPermission, setHasPermission] = useState(null); // null = not checked, true = granted, false = denied
+  const isLoadingRef = useRef(false);
+  const hasCheckedPermissionRef = useRef(false);
+  const hasPermissionRef = useRef(null);
+  const dropdownRef = useRef(null);
   const insets = useSafeAreaInsets();
 
   const filterTabs = ['Thought', 'Images', 'Vibes', 'Videos', 'Sticker'];
 
-  // Sample upload data using DatingProfileImage assets
-  const uploadData = [
-    { id: 1, type: 'add', isAddButton: true },
-    { id: 2, image: require('../../../assets/DatingProfileImage/Match1.png'), type: 'image' },
-    { id: 3, image: require('../../../assets/DatingProfileImage/Match2.png'), type: 'image' },
-    { id: 4, image: require('../../../assets/DatingProfileImage/Match3.png'), type: 'image' },
-    { id: 5, image: require('../../../assets/DatingProfileImage/Match4.png'), type: 'image' },
-    { id: 6, image: require('../../../assets/DatingProfileImage/Match5.png'), type: 'image' },
-    { id: 7, image: require('../../../assets/DatingProfileImage/Match6.png'), type: 'image' },
-    { id: 8, image: require('../../../assets/DatingProfileImage/Match1.png'), type: 'image' },
-    { id: 9, image: require('../../../assets/DatingProfileImage/Match2.png'), type: 'image' },
-    { id: 10, image: require('../../../assets/DatingProfileImage/Match3.png'), type: 'image' },
-    { id: 11, image: require('../../../assets/DatingProfileImage/Match4.png'), type: 'image' },
-    { id: 12, image: require('../../../assets/DatingProfileImage/Match5.png'), type: 'image' },
-    { id: 13, image: require('../../../assets/DatingProfileImage/Match6.png'), type: 'image' },
-    { id: 14, image: require('../../../assets/DatingProfileImage/Match1.png'), type: 'image' },
-    { id: 15, image: require('../../../assets/DatingProfileImage/Match2.png'), type: 'image' },
-    { id: 16, image: require('../../../assets/DatingProfileImage/Match3.png'), type: 'image' },
-    { id: 17, image: require('../../../assets/DatingProfileImage/Match4.png'), type: 'image' },
-    { id: 18, image: require('../../../assets/DatingProfileImage/Match5.png'), type: 'image' },
-    { id: 19, image: require('../../../assets/DatingProfileImage/Match6.png'), type: 'image' },
-    { id: 20, image: require('../../../assets/DatingProfileImage/Match1.png'), type: 'image' },
-  ];
+  // Check storage permission status (including videos)
+  const checkStoragePermission = React.useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    try {
+      // For Android 13+ (API 33+), check both READ_MEDIA_IMAGES and READ_MEDIA_VIDEO
+      if (Platform.Version >= 33) {
+        const mediaImagesCheck = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
+        );
+        const mediaVideosCheck = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
+        );
+        
+        console.log('📱 Permission check - Images:', mediaImagesCheck, 'Videos:', mediaVideosCheck);
+        
+        // At least images permission is required, videos is optional
+        if (mediaImagesCheck) {
+          console.log('✅ Images permission granted - allowing access');
+          return true;
+        } else {
+          console.log('❌ Images permission not granted');
+          return false;
+        }
+      }
+      
+      // For older Android versions, check READ_EXTERNAL_STORAGE
+      const checkResult = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+      );
+      console.log('📱 Permission check (old Android):', checkResult);
+      return checkResult;
+    } catch (err) {
+      console.warn('Permission check error:', err);
+      return false;
+    }
+  }, []);
+
+  // Request storage permission for Android (including videos)
+  const requestStoragePermission = React.useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      setHasPermission(true);
+      return true;
+    }
+
+    try {
+      let imagesGranted = false;
+      let videosGranted = false;
+      
+      // For Android 13+ (API 33+), request both READ_MEDIA_IMAGES and READ_MEDIA_VIDEO
+      if (Platform.Version >= 33) {
+        // Request images permission
+        imagesGranted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+          {
+            title: 'Photo Access Permission',
+            message: 'This app needs access to your photos and videos to show them in the gallery.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'Allow',
+          }
+        );
+        
+        // Request videos permission
+        videosGranted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
+          {
+            title: 'Video Access Permission',
+            message: 'This app needs access to your videos to show them in the gallery.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'Allow',
+          }
+        );
+        
+        // At least images permission is required, videos is optional
+        const isGranted = imagesGranted === PermissionsAndroid.RESULTS.GRANTED;
+        console.log('📱 Permission request result - Images:', imagesGranted === PermissionsAndroid.RESULTS.GRANTED, 'Videos:', videosGranted === PermissionsAndroid.RESULTS.GRANTED);
+        
+        if (!isGranted && videosGranted === PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('⚠️ Videos permission granted but images not granted - requesting images again');
+        }
+        
+        setHasPermission(isGranted);
+        hasPermissionRef.current = isGranted;
+        return isGranted;
+      } else {
+        // For older Android versions, use READ_EXTERNAL_STORAGE
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+          {
+            title: 'Storage Permission',
+            message: 'This app needs access to your photos and videos to show them.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'Allow',
+          }
+        );
+        
+        const isGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
+        setHasPermission(isGranted);
+        hasPermissionRef.current = isGranted;
+        return isGranted;
+      }
+    } catch (err) {
+      console.warn('Permission request error:', err);
+      setHasPermission(false);
+      return false;
+    }
+  }, []);
+
+  // Open device settings
+  const openSettings = () => {
+    Linking.openSettings().catch((err) => {
+      console.error('Error opening settings:', err);
+      Alert.alert('Error', 'Failed to open settings. Please go to Settings > Apps > Vibgyor > Permissions manually.');
+    });
+  };
+
+  // Memoized filtered media - only recalculates when allMedia or mediaFilter changes
+  const filteredMedia = useMemo(() => {
+    if (mediaFilter === 'photo') {
+      return allMedia.filter(item => item.type === 'image');
+    } else if (mediaFilter === 'video') {
+      return allMedia.filter(item => item.type === 'video');
+    }
+    return allMedia; // 'recent' - show all
+  }, [allMedia, mediaFilter]);
+
+  // Memoized gallery items - only recalculates when filteredMedia changes
+  const galleryItems = useMemo(() => {
+    return filteredMedia.map((item, index) => ({
+      id: item.id || `gallery_${index}`,
+      uri: item.uri,
+      type: item.type,
+      isAddButton: false,
+      isVideo: item.type === 'video',
+    }));
+  }, [filteredMedia]);
+
+  // Handle filter selection - optimized with immediate UI update
+  const handleFilterSelect = useCallback((filter) => {
+    // Immediately close dropdown for better UX
+    setShowFilterDropdown(false);
+    
+    // Update filter - this will trigger useMemo and useEffect to update gallery
+    setMediaFilter(filter);
+    
+    console.log(`✅ PostScreen: Filter changed to ${filter}`);
+  }, []);
+  
+  // Sync galleryImages with filtered media whenever filter or allMedia changes
+  useEffect(() => {
+    if (allMedia.length === 0) return; // Don't update if no media loaded yet
+    
+    const cameraItem = { id: 'camera', type: 'add', isAddButton: true };
+    
+    // Use the memoized filteredMedia or calculate it directly
+    let filtered = allMedia;
+    if (mediaFilter === 'photo') {
+      filtered = allMedia.filter(item => item.type === 'image');
+    } else if (mediaFilter === 'video') {
+      filtered = allMedia.filter(item => item.type === 'video');
+    }
+    
+    const items = filtered.map((item, index) => ({
+      id: item.id || `gallery_${index}`,
+      uri: item.uri,
+      type: item.type,
+      isAddButton: false,
+      isVideo: item.type === 'video',
+    }));
+    
+    const totalImages = allMedia.filter(i => i.type === 'image').length;
+    const totalVideos = allMedia.filter(i => i.type === 'video').length;
+    
+    console.log(`📊 PostScreen: Filter "${mediaFilter}" - Total media: ${allMedia.length}, Filtered: ${filtered.length}`);
+    console.log(`📊 Media breakdown - Images: ${totalImages}, Videos: ${totalVideos}`);
+    
+    // Debug: If filtering videos and none found, log details
+    if (mediaFilter === 'video' && filtered.length === 0 && totalVideos > 0) {
+      console.warn(`⚠️ Video filter active but no videos in filtered result! Total videos in allMedia: ${totalVideos}`);
+      console.warn(`   First 3 videos in allMedia:`, allMedia.filter(i => i.type === 'video').slice(0, 3).map(v => ({ type: v.type, uri: v.uri, fileName: v.fileName })));
+    }
+    
+    setGalleryImages([cameraItem, ...items]);
+    console.log(`✅ PostScreen: Gallery updated for filter "${mediaFilter}" - showing ${items.length} items (${items.filter(i => i.isVideo).length} videos)`);
+  }, [allMedia, mediaFilter]);
+
+  // Toggle dropdown - memoized for performance
+  const toggleDropdown = useCallback(() => {
+    setShowFilterDropdown(prev => !prev);
+  }, []);
+
+  // Load gallery images from device
+  const loadGalleryImages = React.useCallback(async (skipPermissionCheck = false) => {
+    // Prevent multiple simultaneous calls
+    if (isLoadingRef.current) {
+      console.log('⏸️ PostScreen: Already loading, skipping...');
+      return;
+    }
+
+    isLoadingRef.current = true;
+    setIsLoading(true);
+    try {
+      console.log('📸 PostScreen: Loading gallery images...');
+      
+      // Check permissions first (don't request if already checked)
+      let permissionGranted = false;
+      if (!skipPermissionCheck) {
+        // Check if permission is already granted
+        permissionGranted = await checkStoragePermission();
+        
+        if (!permissionGranted && hasPermission !== false) {
+          // Only request if we haven't been denied yet
+          permissionGranted = await requestStoragePermission();
+        } else if (hasPermission === false) {
+          // Already denied, don't ask again
+          permissionGranted = false;
+        }
+      } else {
+        permissionGranted = await checkStoragePermission();
+      }
+      
+      if (!permissionGranted) {
+        console.log('❌ PostScreen: Storage permission not granted');
+        // Set at least camera button so screen is not empty
+        setGalleryImages([{ id: 'camera', type: 'add', isAddButton: true }]);
+        setIsLoading(false);
+        isLoadingRef.current = false;
+        return;
+      }
+
+      // Fetch gallery images with initial limit for faster loading (load more on demand)
+      // Load first 500 items for initial display - this is much faster
+      const allMediaItems = await MediaStoreService.fetchGalleryImages({ limit: 500 });
+      console.log(`✅ PostScreen: Loaded ${allMediaItems.length} media items (showing first 500 for performance)`);
+      
+      // Store all media for filtering - this will trigger useEffect to update galleryImages
+      setAllMedia(allMediaItems);
+      setHasPermission(true);
+    } catch (error) {
+      console.error('❌ PostScreen: Error loading gallery images:', error);
+      // On error, show only camera button
+      setGalleryImages([{ id: 'camera', type: 'add', isAddButton: true }]);
+    } finally {
+      setIsLoading(false);
+      isLoadingRef.current = false;
+    }
+  }, [requestStoragePermission, checkStoragePermission, hasPermission, mediaFilter]);
+
+  // Handle opening gallery
+  const handleOpenGallery = async () => {
+    const hasPermission = await requestStoragePermission();
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Denied',
+        'Storage permission is required to access photos.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+      includeBase64: false,
+      selectionLimit: 0, // 0 means no limit (but may be limited by system)
+    };
+
+    launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        console.log('📸 PostScreen: User cancelled gallery');
+      } else if (response.errorMessage) {
+        console.error('❌ PostScreen: Gallery error:', response.errorMessage);
+      } else if (response.assets && response.assets.length > 0) {
+        console.log(`✅ PostScreen: Selected ${response.assets.length} images from gallery`);
+        // Reload gallery after selection to refresh the grid
+        loadGalleryImages();
+      }
+    });
+  };
+
+  // Handle camera button press
+  const handleCameraPress = async () => {
+    if (Platform.OS === 'android') {
+      const hasPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Camera Permission',
+          message: 'This app needs access to camera to take photos.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        }
+      );
+      if (hasPermission !== PermissionsAndroid.RESULTS.GRANTED) {
+        Alert.alert('Permission Denied', 'Camera permission is required.');
+        return;
+      }
+    }
+
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+      includeBase64: false,
+      saveToPhotos: true,
+    };
+
+    launchCamera(options, (response) => {
+      if (response.didCancel) {
+        console.log('📸 PostScreen: User cancelled camera');
+      } else if (response.errorMessage) {
+        console.error('❌ PostScreen: Camera error:', response.errorMessage);
+        Alert.alert('Error', 'Failed to open camera. Please try again.');
+      } else if (response.assets && response.assets[0]) {
+        console.log('✅ PostScreen: Photo captured:', response.assets[0].uri);
+        // Reload gallery after capture to show new photo
+        loadGalleryImages();
+      }
+    });
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (showFilterDropdown) {
+        setShowFilterDropdown(false);
+      }
+    };
+    // Note: For React Native, we'll handle this differently
+    // Dropdown will close when an option is selected
+  }, [showFilterDropdown]);
+
+  // Check permission status on mount (only once)
+  useEffect(() => {
+    if (hasCheckedPermissionRef.current) return;
+    
+    const checkPermissionStatus = async () => {
+      hasCheckedPermissionRef.current = true;
+      console.log('🔍 Initial permission check on mount...');
+      const granted = await checkStoragePermission();
+      console.log('🔍 Initial permission check result:', granted);
+      setHasPermission(granted);
+      hasPermissionRef.current = granted;
+      
+      if (granted && !isLoadingRef.current) {
+        // Load images if permission is already granted
+        console.log('✅ Permission granted on mount, loading gallery...');
+        setTimeout(() => {
+          if (!isLoadingRef.current) {
+            loadGalleryImages(true);
+          }
+        }, 300);
+      } else {
+        console.log('❌ Permission not granted on mount, will show permission screen');
+        // Set to null initially to show loading, then false if not granted
+        if (!granted) {
+          setHasPermission(false);
+        }
+      }
+    };
+    
+    checkPermissionStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-open gallery when screen is focused (only once)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('📸 PostScreen: Screen focused');
+      
+      // Only check permission once per session using ref
+      if (!hasCheckedPermissionRef.current) {
+        hasCheckedPermissionRef.current = true;
+        checkStoragePermission().then(granted => {
+          setHasPermission(granted);
+          hasPermissionRef.current = granted;
+          
+          if (granted && !isLoadingRef.current) {
+            console.log('✅ PostScreen: Permission granted, loading gallery...');
+            loadGalleryImages(true);
+          } else if (!granted && !isLoadingRef.current) {
+            // Request permission only if not granted
+            requestStoragePermission().then(granted => {
+              if (granted && !isLoadingRef.current) {
+                loadGalleryImages(true);
+              }
+            });
+          }
+        });
+      } else {
+        // Re-check permission when screen comes back from settings (without state dependency)
+        checkStoragePermission().then(granted => {
+          const previousPermission = hasPermissionRef.current;
+          console.log('🔄 Re-checking permissions - Previous:', previousPermission, 'Current:', granted);
+          
+          if (granted !== previousPermission) {
+            console.log('✅ Permission status changed, updating...');
+            setHasPermission(granted);
+            hasPermissionRef.current = granted;
+            if (granted && !isLoadingRef.current) {
+              console.log('✅ PostScreen: Permission granted after returning from settings');
+              loadGalleryImages(true);
+            }
+          } else if (granted) {
+            // Permission already granted, but reload if gallery is empty
+            console.log('✅ Permission already granted, ensuring gallery is loaded');
+            if (galleryImages.length <= 1 && !isLoadingRef.current) {
+              loadGalleryImages(true);
+            }
+          }
+        });
+      }
+
+      // Auto-open gallery picker (Instagram style) - only once when screen first opens
+      if (!hasAutoOpened && hasPermissionRef.current === true) {
+        const timer = setTimeout(async () => {
+          console.log('📸 PostScreen: Auto-opening gallery picker...');
+          const options = {
+            mediaType: 'photo',
+            quality: 0.8,
+            includeBase64: false,
+            selectionLimit: 0,
+          };
+
+          launchImageLibrary(options, (response) => {
+            if (response.didCancel) {
+              console.log('📸 PostScreen: User cancelled auto-opened gallery');
+            } else if (response.errorMessage) {
+              console.error('❌ PostScreen: Gallery error:', response.errorMessage);
+            } else if (response.assets && response.assets.length > 0) {
+              console.log(`✅ PostScreen: Selected ${response.assets.length} images`);
+              // Reload gallery after selection
+              if (!isLoadingRef.current) {
+                loadGalleryImages(true);
+              }
+            }
+          });
+          setHasAutoOpened(true);
+        }, 800); // Small delay to let screen render
+
+        return () => clearTimeout(timer);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasAutoOpened])
+  );
 
   return (
     <CommonBackground>
@@ -149,33 +591,181 @@ function PostScreen() {
 
       {/* Sub Header */}
       <View style={styles.subHeader}>
-        <TouchableOpacity style={styles.recentButton}>
-          <Text style={styles.recentText}>Recent</Text>
-          <ChevronDownIcon width={16} height={16} color="white" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuButton}>
-          <HamburgerIcon width={24} height={24} color="white" />
-        </TouchableOpacity>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity 
+            style={styles.recentButton}
+            onPress={toggleDropdown}
+            activeOpacity={0.7}
+            ref={dropdownRef}
+          >
+            <Text style={styles.recentText}>
+              {mediaFilter === 'recent' ? 'Recent' : mediaFilter === 'photo' ? 'Photos' : 'Videos'}
+            </Text>
+            <ChevronDownIcon width={16} height={16} color="white" />
+          </TouchableOpacity>
+          
+          {/* Overlay to close dropdown when clicking outside */}
+          {showFilterDropdown && (
+            <Pressable 
+              style={styles.dropdownOverlay}
+              onPress={() => setShowFilterDropdown(false)}
+              android_disableSound={true}
+            />
+          )}
+          
+          {/* Filter Dropdown */}
+          {showFilterDropdown && (
+            <View style={styles.filterDropdown}>
+              <TouchableOpacity
+                style={[styles.filterOption, mediaFilter === 'recent' && styles.filterOptionActive]}
+                onPress={() => handleFilterSelect('recent')}
+                activeOpacity={0.6}
+              >
+                <Text style={[styles.filterOptionText, mediaFilter === 'recent' && styles.filterOptionTextActive]}>
+                  Recent
+                </Text>
+                {mediaFilter === 'recent' && <View style={styles.filterIndicator} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.filterOption, mediaFilter === 'photo' && styles.filterOptionActive]}
+                onPress={() => handleFilterSelect('photo')}
+                activeOpacity={0.6}
+              >
+                <Text style={[styles.filterOptionText, mediaFilter === 'photo' && styles.filterOptionTextActive]}>
+                  Photos
+                </Text>
+                {mediaFilter === 'photo' && <View style={styles.filterIndicator} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.filterOption, mediaFilter === 'video' && styles.filterOptionActive]}
+                onPress={() => handleFilterSelect('video')}
+                activeOpacity={0.6}
+              >
+                <Text style={[styles.filterOptionText, mediaFilter === 'video' && styles.filterOptionTextActive]}>
+                  Videos
+                </Text>
+                {mediaFilter === 'video' && <View style={styles.filterIndicator} />}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+    
       </View>
 
       {/* Upload Grid (Scrollable) */}
+      {hasPermission === false ? (
+        <View style={styles.permissionContainer}>
+          <Text style={styles.permissionTitle}>Permission Required</Text>
+          <Text style={styles.permissionText}>
+            Please allow access to your photos to view and select images from your gallery.
+          </Text>
+          <TouchableOpacity 
+            style={styles.permissionButton}
+            onPress={async () => {
+              console.log('🔐 User clicked Grant Permission button');
+              // First check current permission status
+              const currentPermission = await checkStoragePermission();
+              console.log('🔐 Current permission status:', currentPermission);
+              
+              if (currentPermission) {
+                // Permission already granted, just update state
+                console.log('✅ Permission already granted, updating state');
+                setHasPermission(true);
+                hasPermissionRef.current = true;
+                loadGalleryImages(true);
+              } else {
+                // Request permission
+                const granted = await requestStoragePermission();
+                console.log('🔐 Permission request result:', granted);
+                if (granted) {
+                  hasPermissionRef.current = true;
+                  loadGalleryImages(true);
+                }
+              }
+            }}
+          >
+            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={async () => {
+              console.log('⚙️ Opening settings...');
+              openSettings();
+              // Re-check permission after a delay when returning from settings
+              setTimeout(async () => {
+                const granted = await checkStoragePermission();
+                console.log('🔐 Permission status after settings:', granted);
+                if (granted) {
+                  setHasPermission(true);
+                  hasPermissionRef.current = true;
+                  loadGalleryImages(true);
+                }
+              }, 1000);
+            }}
+          >
+            <Text style={styles.settingsButtonText}>Open Settings</Text>
+          </TouchableOpacity>
+        </View>
+      ) : isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#DD3562" />
+          <Text style={styles.loadingText}>Loading gallery...</Text>
+        </View>
+      ) : (
       <ScrollView
         style={styles.uploadScroll}
         contentContainerStyle={styles.uploadGrid}
         showsVerticalScrollIndicator={false}
       >
-        {uploadData.map((item) => (
-          <TouchableOpacity key={item.id} style={styles.uploadCard}>
+          {galleryImages.length === 0 || galleryImages.length === 1 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No images found</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={() => loadGalleryImages(false)}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            galleryImages.map((item) => (
+              <TouchableOpacity 
+                key={item.id} 
+                style={styles.uploadCard}
+                onPress={() => {
+                  if (item.isAddButton) {
+                    handleCameraPress();
+                  } else if (!item.isVideo) {
+                    // Navigate to CropScreen when image is selected (only for images, not videos)
+                    navigation.navigate('Crop', { 
+                      imageUri: item.uri
+                    });
+                  }
+                  // Videos can be handled differently if needed
+                }}
+              >
             {item.isAddButton ? (
               <View style={styles.addButton}>
                 <CameraIcon width={32} height={32} color="white" />
               </View>
-            ) : (
-              <Image source={item.image} style={styles.uploadImage} resizeMode="cover" />
+                ) : item.isVideo ? (
+                  <View style={styles.videoContainer}>
+                    <Image source={{ uri: item.uri }} style={styles.uploadImage} resizeMode="cover" />
+                    <View style={styles.videoOverlay}>
+                      <View style={styles.playIcon}>
+                        <Svg width={24} height={24} viewBox="0 0 24 24" fill="white">
+                          <Path d="M8 5v14l11-7z" />
+                        </Svg>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <Image source={{ uri: item.uri }} style={styles.uploadImage} resizeMode="cover" />
             )}
           </TouchableOpacity>
-        ))}
+            ))
+          )}
       </ScrollView>
+      )}
 
       {/* <View style={styles.tabsWrapper}>
         <ScrollView
@@ -242,15 +832,75 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     backgroundColor: '#140034',
   },
+  filterContainer: {
+    position: 'relative',
+    zIndex: 100,
+  },
+  dropdownOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    zIndex: 98,
+  },
   recentButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+   
+    borderRadius: 8,
+    minWidth: 100,
   },
   recentText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '500',
     marginRight: 8,
+  },
+  filterDropdown: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    backgroundColor: '#1a0a3d',
+    borderRadius: 8,
+    paddingVertical: 4,
+    minWidth: 150,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minWidth: 150,
+  },
+  filterOptionActive: {
+    backgroundColor: 'rgba(221, 53, 98, 0.15)',
+  },
+  filterOptionText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filterOptionTextActive: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  filterIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#DD3562',
   },
   menuButton: {
     padding: 4,
@@ -279,6 +929,29 @@ const styles = StyleSheet.create({
   uploadImage: {
     width: '100%',
     height: '100%',
+  },
+  videoContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  videoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tabsContainer: {
     paddingHorizontal: 20,
@@ -428,6 +1101,88 @@ const styles = StyleSheet.create({
     height: 38,
     textAlignVertical: 'bottom',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+    marginTop: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  emptyText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#DD3562',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 50,
+  },
+  permissionTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  permissionText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  permissionButton: {
+    backgroundColor: '#DD3562',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginBottom: 16,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  permissionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  settingsButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  settingsButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

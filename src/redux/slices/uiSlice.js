@@ -119,6 +119,13 @@ const uiSlice = createSlice({
         state.isStoryScreenActive = true;
         state.isChatScreenActive = false;
         state.isCallScreenActive = false;
+      } else if (action.payload === 'Crop') {
+        console.log('✂️ Redux: setCurrentScreen called with Crop - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('✂️ Redux: isTabBarVisible set to:', state.isTabBarVisible);
       } else if (action.payload === 'LikeResult') {
         state.isTabBarVisible = false;
         state.isChatScreenActive = false;
