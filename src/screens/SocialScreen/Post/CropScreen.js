@@ -144,23 +144,10 @@ function CropScreen() {
         // Dimensions will be set by the crop operation
       };
 
-      // Navigate to PostEditScreen
-      const rootNavigator = navigation.getParent()?.getParent();
-      if (rootNavigator) {
-        rootNavigator.navigate('Main', {
-          screen: 'Home',
-          params: {
-            screen: 'PostEdit',
-            params: {
-              croppedImage: finalImage
-            }
-          }
-        });
-      } else {
-        navigation.navigate('PostEdit', { 
-          croppedImage: finalImage
-        });
-      }
+      // Navigate to FilterScreen
+      navigation.navigate('Filter', { 
+        croppedImage: finalImage
+      });
     } catch (error) {
       console.error('❌ Error cropping image:', error);
       Alert.alert('Error', 'Failed to crop image. Please try again.');

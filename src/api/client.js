@@ -101,7 +101,8 @@ const request = async (endpoint, options = {}, retryCount = 0) => {
   const config = {
     method: options.method || 'GET',
     headers,
-    timeout: API_CONFIG.TIMEOUT,
+    // Note: React Native fetch doesn't support timeout option
+    // Timeout handling should be done via AbortController if needed
     ...otherOptions,
   };
 

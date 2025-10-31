@@ -25,7 +25,7 @@ export default function GetVerifiedScreen() {
         },
         {
             id: '2',
-            title: 'Other Verification',
+            title: 'Other Verification ',
             type: 'other'
         }
     ];

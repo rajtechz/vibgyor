@@ -116,10 +116,20 @@ function PersonalDetailsScreen({ navigation }) {
     };
   }, [formData]);
 
-  // Get current profile step on component mount
+  // Get current profile step on component mount - check immediately to prevent wrong screen
   useEffect(() => {
     const getCurrentStep = async () => {
       try {
+        // Check Redux state first (might be faster)
+        if (authState.isProfileCompleted) {
+          console.log('✅ DEBUG: Profile already completed in Redux, navigating to home screen');
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
+          return;
+        }
+
         console.log('📊 DEBUG: Fetching current profile step...');
         const result = await authAPI.getProfileStep(authState.accessToken);
         
@@ -127,13 +137,26 @@ function PersonalDetailsScreen({ navigation }) {
           console.log('✅ DEBUG: Profile step retrieved:', result.data);
           
           // Extract step information from API response
-          const currentStep = result.data?.data?.currentStep || result.data?.data?.profileCompletionStep;
-          const isCompleted = result.data?.data?.isCurrentStepCompleted || result.data?.data?.isProfileCompleted;
-          const nextStep = result.data?.data?.nextStep;
+          const profileData = result.data?.data || {};
+          const currentStep = profileData.currentStep || profileData.profileCompletionStep;
+          const isCompleted = profileData.isCurrentStepCompleted || profileData.isProfileCompleted || currentStep === 'completed';
+          const nextStep = profileData.nextStep;
           
           console.log('📊 DEBUG: Current step:', currentStep);
           console.log('📊 DEBUG: Is completed:', isCompleted);
           console.log('📊 DEBUG: Next step:', nextStep);
+          
+          // Update Redux with latest status
+          if (isCompleted) {
+            dispatch(setProfileCompletion({
+              isCompleted: true,
+              step: 'completed'
+            }));
+            
+            // Update AsyncStorage
+            const { setProfileSetupStatus } = await import('../../utils/authUtils');
+            await setProfileSetupStatus(true);
+          }
           
           // Check if profile is completed
           if (currentStep === 'completed' || isCompleted) {
@@ -175,8 +198,15 @@ function PersonalDetailsScreen({ navigation }) {
     // Only get step if user is authenticated
     if (authState.isAuthenticated && authState.accessToken) {
       getCurrentStep();
+    } else {
+      // If not authenticated, redirect to Auth
+      console.log('❌ DEBUG: User not authenticated, redirecting to Auth');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Auth' }],
+      });
     }
-  }, [authState.isAuthenticated, authState.accessToken, navigation]);
+  }, [authState.isAuthenticated, authState.accessToken, authState.isProfileCompleted, navigation, dispatch]);
 
   // Handle email verification success when returning from VerifyNumberScreen
   useFocusEffect(

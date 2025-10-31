@@ -72,8 +72,8 @@ function VerificationScreen() {
             />
           </Svg>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Verification</Text>
-        <View style={styles.headerSpacer} />
+        <Text style={styles.headerTitle}>Verification </Text>
+       
       </View>
 
       <View style={styles.container}>

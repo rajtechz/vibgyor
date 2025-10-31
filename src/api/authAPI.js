@@ -516,45 +516,106 @@ export const authAPI = {
   uploadProfilePicture: async (imageData, accessToken) => {
     console.log('📸 AuthAPI: uploadProfilePicture called');
     console.log('📸 Image Data:', imageData);
-    console.log('🔑 Access Token:', accessToken);
+    console.log('🔑 Access Token:', accessToken ? 'Present' : 'Missing');
     console.log('🔗 Endpoint:', API_ENDPOINTS.UPLOAD_PROFILE_PICTURE);
     console.log('🌐 Full URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`);
 
+    if (!accessToken) {
+      console.log('❌ AuthAPI: No access token provided');
+      return {
+        success: false,
+        error: 'Missing access token',
+        message: 'Failed to upload profile picture',
+      };
+    }
+
+    if (!imageData || !imageData.uri) {
+      console.log('❌ AuthAPI: Invalid image data');
+      return {
+        success: false,
+        error: 'Invalid image data',
+        message: 'Failed to upload profile picture',
+      };
+    }
+
     try {
-      // Create FormData for file upload
+      // Create FormData for file upload (React Native format)
       const formData = new FormData();
+      
+      // React Native FormData requires specific format
+      // The file object should have: uri, type, name (or filename)
+      const fileExtension = imageData.uri.split('.').pop() || 'jpg';
+      const fileName = imageData.fileName || `profile_picture_${Date.now()}.${fileExtension}`;
+      
       formData.append('file', {
         uri: imageData.uri,
         type: imageData.type || 'image/jpeg',
-        name: imageData.fileName || 'profile_picture.jpg',
+        name: fileName,
       });
 
-      console.log('📤 FormData created:', formData);
-      console.log('📤 FormData entries:');
-      for (let [key, value] of formData._parts) {
-        console.log(`📤 ${key}:`, value);
-      }
+      console.log('📤 FormData created');
+      console.log('📤 File URI:', imageData.uri);
+      console.log('📤 File Type:', imageData.type || 'image/jpeg');
+      console.log('📤 File Name:', fileName);
+
+      // Prepare headers
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        // Note: Don't set Content-Type - React Native will set it automatically with boundary
+        // Setting it manually will break FormData uploads
+      };
+
+      console.log('📤 Request Headers:', { ...headers, Authorization: 'Bearer ***' });
+      console.log('📤 Request Method: POST');
+      console.log('📤 Request URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`);
 
       // Make API call with FormData
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          // Don't set Content-Type manually for FormData - let React Native handle it
-        },
+        headers: headers,
         body: formData,
       });
 
       console.log('📊 Raw Response Status:', response.status);
-      console.log('📊 Raw Response Headers:', response.headers);
+      console.log('📊 Raw Response Status Text:', response.statusText);
 
+      // Handle non-OK responses
       if (!response.ok) {
-        const errorText = await response.text();
-        console.log('❌ Response Error Text:', errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        let errorText;
+        try {
+          errorText = await response.text();
+          console.log('❌ Response Error Text:', errorText);
+          
+          // Try to parse as JSON
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+            console.log('❌ Parsed Error Data:', errorData);
+            throw new Error(errorData.message || errorData.error || `HTTP ${response.status}: ${errorText}`);
+          } catch (parseError) {
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+          }
+        } catch (textError) {
+          throw new Error(`HTTP ${response.status}: Failed to read error response`);
+        }
       }
 
-      const responseData = await response.json();
+      // Parse successful response
+      let responseData;
+      try {
+        const responseText = await response.text();
+        console.log('📄 Raw Response Text:', responseText);
+        
+        if (!responseText || responseText.trim() === '') {
+          throw new Error('Empty response from server');
+        }
+        
+        responseData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ JSON Parse Error:', parseError);
+        throw new Error('Invalid JSON response from server');
+      }
+
       console.log('✅ AuthAPI: uploadProfilePicture success');
       console.log('📊 Response Data:', JSON.stringify(responseData, null, 2));
 
@@ -566,9 +627,20 @@ export const authAPI = {
     } catch (error) {
       console.log('❌ AuthAPI: uploadProfilePicture error');
       console.log('💥 Error Type:', typeof error);
+      console.log('💥 Error Name:', error.name);
       console.log('💥 Error Message:', error.message);
       console.log('💥 Error Stack:', error.stack);
-      console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
+      
+      // Check if it's a network error
+      if (error.message === 'Network request failed' || error.message.includes('Network')) {
+        console.log('🌐 Network Error Detected - Backend server may not be running');
+        console.log('🌐 Check if backend is running on:', API_CONFIG.BASE_URL);
+        return {
+          success: false,
+          error: 'Cannot connect to server. Please ensure the backend server is running.',
+          message: 'Network connection failed',
+        };
+      }
 
       return {
         success: false,

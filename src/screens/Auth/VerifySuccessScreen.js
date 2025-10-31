@@ -3,7 +3,9 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, StatusBar } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, G, Filter, FeFlood, FeColorMatrix, FeOffset, FeGaussianBlur, FeComposite, FeBlend } from 'react-native-svg';
+import { useSelector } from 'react-redux';
 import { setVerificationStatus } from '../../utils/authUtils';
+import { authAPI } from '../../api/authAPI';
 import CommonBackground from '../../components/common/CommonBackground';
 
 // Success Icon Component - Complete version matching the original SVG
@@ -87,20 +89,66 @@ const SuccessIcon = ({ width = 180, height = 180 }) => (
 );
 
 function VerifySuccessScreen({ navigation }) {
+  const authState = useSelector((state) => state.auth);
+  
   useEffect(() => {
     const timer = setTimeout(async () => {
-      // Don't set verification status to always start fresh
-      // await setVerificationStatus(true);
-      
-      // Navigate to ProfileSetup
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'ProfileSetup' }],
-      });
+      // Check if user has tokens (should have after OTP verification)
+      if (!authState.accessToken) {
+        console.log('❌ VerifySuccessScreen: No access token, redirecting to Auth');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Auth' }],
+        });
+        return;
+      }
+
+      // Check profile completion status via API
+      try {
+        console.log('📊 VerifySuccessScreen: Checking profile completion status...');
+        const profileStepResult = await authAPI.getProfileStep(authState.accessToken);
+        
+        if (profileStepResult.success) {
+          const profileData = profileStepResult.data?.data || {};
+          const currentStep = profileData.currentStep || profileData.profileCompletionStep;
+          const isCompleted = profileData.isCurrentStepCompleted || profileData.isProfileCompleted || currentStep === 'completed';
+          
+          console.log('📊 VerifySuccessScreen: Profile Status:', { currentStep, isCompleted });
+          
+          // Navigate based on profile completion status
+          if (isCompleted || currentStep === 'completed') {
+            console.log('✅ VerifySuccessScreen: Profile completed, navigating to Main');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' }],
+            });
+          } else {
+            console.log('📝 VerifySuccessScreen: Profile not completed, navigating to ProfileSetup');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'ProfileSetup' }],
+            });
+          }
+        } else {
+          // If API fails, default to ProfileSetup (user likely needs to complete profile)
+          console.log('⚠️ VerifySuccessScreen: Failed to check profile status, defaulting to ProfileSetup');
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'ProfileSetup' }],
+          });
+        }
+      } catch (error) {
+        console.error('💥 VerifySuccessScreen: Error checking profile status:', error);
+        // On error, default to ProfileSetup
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'ProfileSetup' }],
+        });
+      }
     }, 2000);
   
     return () => clearTimeout(timer);
-  }, [navigation]);
+  }, [navigation, authState.accessToken]);
 
   return (
     <CommonBackground style={styles.container}>

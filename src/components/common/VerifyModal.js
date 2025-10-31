@@ -1,10 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Animated } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Rect, Path, G, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Circle } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const VerifyModal = ({ visible, onClose }) => {
+  const navigation = useNavigation();
   const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -43,7 +45,15 @@ const VerifyModal = ({ visible, onClose }) => {
   const handleGetVerified = () => {
     // Handle verification action
     console.log('Get Verified button pressed');
-    onClose(); // Close modal after action
+    onClose(); // Close modal first
+    
+    // Navigate to VerificationScreen
+    // VerificationScreen is in ProfileStackNavigator, so navigate via Profile tab
+    // Using nested navigation to ensure cross-stack navigation works
+    navigation.navigate('Profile', { 
+      screen: 'Verification' 
+    });
+    console.log('✅ Navigated to Verification screen');
   };
 
   return (
@@ -146,7 +156,7 @@ const VerifyModal = ({ visible, onClose }) => {
 
 
             <TouchableOpacity style={styles.verifyButton} onPress={handleGetVerified}>
-              <Text style={styles.verifyButtonText}>GET VERIFIED NOW</Text>
+              <Text style={styles.verifyButtonText}>GET VERIFIED NOW </Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

@@ -126,6 +126,13 @@ const uiSlice = createSlice({
         state.isCallScreenActive = false;
         state.isStoryScreenActive = false;
         console.log('✂️ Redux: isTabBarVisible set to:', state.isTabBarVisible);
+      } else if (action.payload === 'Filter') {
+        console.log('🎨 Redux: setCurrentScreen called with Filter - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('🎨 Redux: isTabBarVisible set to:', state.isTabBarVisible);
       } else if (action.payload === 'LikeResult') {
         state.isTabBarVisible = false;
         state.isChatScreenActive = false;

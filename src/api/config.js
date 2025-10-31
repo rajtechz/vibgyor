@@ -12,28 +12,35 @@ const getBaseURL = () => {
   if (__DEV__) {
     // Development mode
     
-    // IMPORTANT: If using ADB Reverse (adb reverse tcp:3000 tcp:3000)
-    // Then use 'localhost' - this is the EASIEST solution!
-    // Uncomment below if using ADB reverse:
-    // return 'http://localhost:3000';
+    // RECOMMENDED: Use ADB Reverse for Android Physical Devices
+    // This is the most reliable solution - run this command:
+    // adb reverse tcp:3000 tcp:3000
+    // Then use 'http://localhost:3000' or 'http://127.0.0.1:3000'
     
+    // For Android:
     if (Platform.OS === 'android') {
-      // Using network IP for physical device (MOST RELIABLE)
-      // Requires backend to listen on 0.0.0.0:3000 (should already be set)
-      return 'http://192.168.29.173:3000';
+      // Option 1: ADB Reverse (RECOMMENDED - Most Reliable)
+      // Run: adb reverse tcp:3000 tcp:3000 (connect device via USB first)
+      // Use 127.0.0.1 instead of localhost for better compatibility
+      return 'http://127.0.0.1:3000';
       
-      // Alternative: ADB Reverse (if network IP doesn't work)
-      // Run: adb reverse tcp:3000 tcp:3000 (after connecting phone via USB)
-      // return 'http://127.0.0.1:3000';
+      // Alternative: Use localhost (sometimes works better)
+      // return 'http://localhost:3000';
       
-      // Option 3: For Android Emulator
+      // Option 2: Network IP (if ADB reverse doesn't work)
+      // Requires: Backend must listen on 0.0.0.0:3000 (not just 127.0.0.1)
+      // Device and computer must be on same WiFi network
+      // return 'http://192.168.29.173:3000';
+      
+      // Option 3: Android Emulator
+      // Use this if running on Android Emulator (not physical device)
       // return 'http://10.0.2.2:3000';
     } else {
-      // iOS - For Physical Device use network IP, for Simulator use localhost
-      // For iOS Physical Device:
-      return 'http://192.168.29.173:3000';
-      // For iOS Simulator:
-      // return 'http://localhost:3000';
+      // For iOS:
+      // Physical Device: use network IP
+      // Simulator: use localhost
+      return 'http://localhost:3000'; // For iOS Simulator
+      // return 'http://192.168.29.173:3000'; // For iOS Physical Device
     }
   }
   // Production

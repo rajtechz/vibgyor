@@ -1,8 +1,9 @@
 // src/screens/Profile/UploadAadharScreen.js
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Dimensions, Image, Alert, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import CommonBackground from '../../../components/common/CommonBackground';
 import Svg, { Path } from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
@@ -82,18 +83,64 @@ const UploadIcon = ({ width = 60, height = 60 }) => (
 function UploadAadharScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageData, setImageData] = useState(null);
 
   const handleBack = () => {
     navigation.goBack();
   };
 
   const handleUpload = () => {
-    console.log('Upload Aadhar pressed');
-    // Handle upload functionality here
+    console.log('Upload Aadhar pressed - Opening gallery');
+    
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      includeBase64: false,
+    };
+
+    launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.errorMessage) {
+        console.error('ImagePicker Error: ', response.errorMessage);
+        Alert.alert('Error', 'Failed to open gallery. Please try again.');
+      } else if (response.assets && response.assets[0]) {
+        const asset = response.assets[0];
+        console.log('✅ Aadhar image selected:', asset.uri);
+        
+        // Store image URI for preview
+        setSelectedImage(asset.uri);
+        
+        // Store image data for upload
+        setImageData({
+          uri: asset.uri,
+          type: asset.type || 'image/jpeg',
+          fileName: asset.fileName || `aadhar_${Date.now()}.jpg`,
+          fileSize: asset.fileSize,
+        });
+        
+        console.log('📸 Image data stored:', {
+          uri: asset.uri,
+          type: asset.type,
+          fileName: asset.fileName,
+          fileSize: asset.fileSize,
+        });
+      }
+    });
   };
 
   const handleContinue = () => {
-    console.log('Continue pressed');
+    if (!selectedImage || !imageData) {
+      Alert.alert('Upload Required', 'Please upload your Aadhar card before contin`uing.');
+      return;
+    }
+    
+    console.log('Continue pressed with image:', imageData);
+    // TODO: Upload image to server here if needed
+    // For now, just navigate to next screen
     navigation.navigate('StartVerification');
   };
 
@@ -110,9 +157,14 @@ function UploadAadharScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Main Title */}
-        <Text style={styles.mainTitle}>Upload Aadhar</Text>
+        <Text style={styles.mainTitle}>Upload Aadhar </Text>
         
         {/* Description Text */}
         <Text style={styles.descriptionText}>
@@ -121,8 +173,28 @@ function UploadAadharScreen() {
 
         {/* Upload Area */}
         <TouchableOpacity style={styles.uploadArea} onPress={handleUpload} activeOpacity={0.8}>
-          <UploadIcon width={60} height={60} />
-          <Text style={styles.uploadText}>Upload Aadhar</Text>
+          {selectedImage ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: selectedImage }} 
+                style={styles.previewImage}
+                resizeMode="contain"
+              />
+              <TouchableOpacity 
+                style={styles.changeImageButton}
+                onPress={handleUpload}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.changeImageText}>Change Image</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <UploadIcon width={60} height={60} />
+              <Text style={styles.uploadText}>Upload Aadhar</Text>
+              <Text style={styles.uploadHint}>Tap to select from gallery</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         {/* Continue Button */}
@@ -136,7 +208,7 @@ function UploadAadharScreen() {
             <Text style={styles.continueText}>Continue</Text>
           </LinearGradient>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </CommonBackground>
   );
 }
@@ -161,10 +233,14 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
-  container: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 40,
+    paddingBottom: 40,
+    flexGrow: 1,
   },
   mainTitle: {
     fontSize: 28,
@@ -198,9 +274,38 @@ const styles = StyleSheet.create({
     color: '#8A52F3',
     marginTop: 16,
   },
+  uploadHint: {
+    fontSize: 14,
+    color: '#B0B0B0',
+    marginTop: 8,
+  },
+  imagePreviewContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewImage: {
+    width: '100%',
+    height: 300,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  changeImageButton: {
+    backgroundColor: 'rgba(138, 82, 243, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#8A52F3',
+  },
+  changeImageText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8A52F3',
+  },
   continueButton: {
-    marginTop: 'auto',
-    marginBottom: 40,
+    marginTop: 20,
+    marginBottom: 20,
   },
   continueGradient: {
     paddingVertical: 16,
