@@ -9,8 +9,7 @@ import Geolocation from '@react-native-community/geolocation';
 import CustomButton from '../../components/common/CustomButton';
 import ErrorModal from '../../components/common/ErrorModal';
 import { authAPI } from '../../api/authAPI';
-import { useSelector, useDispatch } from 'react-redux';
-import { setProfileCompletion } from '../../redux/slices/authSlice';
+import { useSelector } from 'react-redux';
 
      
 // Back Icon Component
@@ -75,7 +74,6 @@ function LocationScreen({ navigation }) {
 
   // Get access token from Redux
   const authState = useSelector((state) => state.auth);
-  const dispatch = useDispatch();
 
   const showError = (message, title = 'Error') => {
     setErrorModal({
@@ -456,34 +454,9 @@ function LocationScreen({ navigation }) {
       if (result.success && result.data?.success) {
         console.log('✅ DEBUG: Location profile updated successfully');
         
-        // Check next step from response
-        const nextStep = result.data?.data?.nextStep || result.data?.data?.profileCompletionStep;
-        console.log('📊 DEBUG: Next step:', nextStep);
-        
-        // Check if profile is completed
-        if (nextStep === 'completed' || result.data?.data?.isProfileCompleted) {
-          console.log('✅ DEBUG: Profile is completed, storing completion status');
-          
-          // Store profile completion in Redux
-          dispatch(setProfileCompletion({
-            isCompleted: true,
-            step: 'completed'
-          }));
-          
-          // Store profile completion in AsyncStorage
-          const { setProfileSetupStatus } = await import('../../utils/authUtils');
-          await setProfileSetupStatus(true);
-          
-          // Navigate to home screen
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
-        } else {
-          // Navigate to SwitchProfile screen as requested
-          console.log('📊 DEBUG: Navigating to SwitchProfile screen');
-          navigation.navigate('SwitchProfiles');
-        }
+        // Navigate to SwitchProfiles screen after location
+        console.log('📊 DEBUG: Navigating to SwitchProfiles screen');
+        navigation.navigate('SwitchProfiles');
       } else {
         console.log('❌ DEBUG: Location profile update failed');
         console.log('❌ DEBUG: Error:', result.error);

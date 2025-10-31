@@ -1,8 +1,55 @@
+import { Platform } from 'react-native';
+
+// Detect if running on Android Emulator
+// Android Emulator uses special IP: 10.0.2.2 to access host machine's localhost
+// Physical devices and iOS simulator can use actual network IP
+
+// For Android Emulator: use 10.0.2.2
+// For Physical Device: use your actual IP (192.168.1.45)
+// For iOS Simulator: use localhost or actual IP
+
+const getBaseURL = () => {
+  if (__DEV__) {
+    // Development mode
+    
+    // IMPORTANT: If using ADB Reverse (adb reverse tcp:3000 tcp:3000)
+    // Then use 'localhost' - this is the EASIEST solution!
+    // Uncomment below if using ADB reverse:
+    // return 'http://localhost:3000';
+    
+    if (Platform.OS === 'android') {
+      // Option 1: ADB Reverse - Use 127.0.0.1 instead of localhost
+      // (Sometimes React Native has issues with 'localhost' hostname)
+      // Run: adb reverse tcp:3000 tcp:3000 (after connecting phone via USB)
+      return 'http://127.0.0.1:3000';
+      
+      // Option 2: Network IP (requires backend to listen on 0.0.0.0:3000)
+      // Uncomment below if NOT using ADB reverse:
+      // return 'http://192.168.1.45:3000';
+      
+      // Option 3: For Android Emulator
+      // return 'http://10.0.2.2:3000';
+    } else {
+      // iOS - For Physical Device use network IP, for Simulator use localhost
+      // For iOS Physical Device:
+      return 'http://192.168.1.45:3000';
+      // For iOS Simulator:
+      // return 'http://localhost:3000';
+    }
+  }
+  // Production
+  return 'https://vibgyornode.onrender.com';
+};
+
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: 'https://vibgyornode.onrender.com',
-  LOCAL_BASE_URL: 'https://vibgyornode.onrender.com',
-  TIMEOUT: 10000,
+  // Dynamic BASE_URL based on platform
+  BASE_URL: getBaseURL(),
+  // Keep local IP for reference
+  LOCAL_BASE_URL: 'http://192.168.1.45:3000',
+  // Emulator URL for Android
+  ANDROID_EMULATOR_URL: 'http://10.0.2.2:3000',
+  TIMEOUT: 15000, // Increased timeout for network requests
   HEADERS: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
