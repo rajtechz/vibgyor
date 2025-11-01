@@ -45,19 +45,37 @@ function RootNavigator() {
           // Check if access token is expired
           if (isTokenExpired(authStatus.accessToken)) {
             console.log('⚠️ RootNavigator: Access token expired, refreshing...');
+            console.log('🔄 RootNavigator: Refresh token from AsyncStorage:', authStatus.refreshToken ? 'Present' : 'Missing');
+            console.log('🔄 RootNavigator: Refresh token type:', typeof authStatus.refreshToken);
+            console.log('🔄 RootNavigator: Refresh token length:', authStatus.refreshToken?.length);
+            
+            if (!authStatus.refreshToken || typeof authStatus.refreshToken !== 'string' || authStatus.refreshToken.trim().length === 0) {
+              console.log('❌ RootNavigator: Invalid refresh token, redirecting to login');
+              setInitialRoute('Auth');
+              return;
+            }
+            
             try {
-              const refreshResult = await dispatch(refreshAccessToken(authStatus.refreshToken));
+              const refreshResult = await dispatch(refreshAccessToken(authStatus.refreshToken.trim()));
               
               if (refreshAccessToken.fulfilled.match(refreshResult)) {
                 console.log('✅ RootNavigator: Token refreshed successfully');
-                const newAccessToken = refreshResult.payload?.accessToken || authStatus.accessToken;
-                const newRefreshToken = refreshResult.payload?.refreshToken || authStatus.refreshToken;
+                // Extract token from nested response structure: payload.data.data.accessToken
+                const responseData = refreshResult.payload?.data || refreshResult.payload;
+                const newAccessToken = responseData?.data?.accessToken || responseData?.accessToken || refreshResult.payload?.accessToken;
+                const newRefreshToken = responseData?.data?.refreshToken || responseData?.refreshToken || refreshResult.payload?.refreshToken;
                 
-                dispatch(setTokens({
-                  accessToken: newAccessToken,
-                  refreshToken: newRefreshToken,
-                  user: null
-                }));
+                console.log('🔄 RootNavigator: Extracted new accessToken:', newAccessToken ? 'Present' : 'Missing');
+                
+                if (newAccessToken) {
+                  dispatch(setTokens({
+                    accessToken: newAccessToken,
+                    refreshToken: newRefreshToken || authStatus.refreshToken,
+                    user: null
+                  }));
+                } else {
+                  console.log('⚠️ RootNavigator: No accessToken in refresh response');
+                }
               } else {
                 console.log('❌ RootNavigator: Token refresh failed, redirecting to login');
                 // Token refresh failed, user needs to login again

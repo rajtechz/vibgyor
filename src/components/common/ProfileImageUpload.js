@@ -114,58 +114,57 @@ function ProfileImageUpload({ onImageSelected, currentImage, size = 120 }) {
     if (!tokenToUse) {
       console.log('❌ DEBUG: No access token available for upload');
       console.log('❌ DEBUG: This means Redux state is not properly updated');
-      // Don't show error, just store locally for now
-      console.log('📸 DEBUG: Storing image locally without upload');
-      onImageSelected && onImageSelected(imageData);
+      Alert.alert('Authentication Error', 'Please login to upload profile picture');
       return;
     }
 
-    // Skip upload for initial profile setup - store locally only
-    // Profile picture will be uploaded after profile is created
-    console.log('📸 DEBUG: Profile setup mode - storing image locally');
-    console.log('📸 DEBUG: Image will be uploaded after profile is created');
-    
-    // Simulate uploading state briefly
-    setIsUploading(true);
-    setTimeout(() => {
-      setIsUploading(false);
-      onImageSelected && onImageSelected(imageData);
-    }, 300);
-    return;
-
-    // OLD UPLOAD CODE - COMMENTED OUT FOR NOW
-    /*
+    // Upload profile picture to server
     try {
       setIsUploading(true);
-      console.log('📸 DEBUG: Starting profile picture upload...');
-      console.log('📸 DEBUG: Image data:', imageData);
+      
       
       const result = await authAPI.uploadProfilePicture(imageData, tokenToUse);
       
       console.log('📊 DEBUG: Upload API Response:', result);
+      console.log('📊 DEBUG: Response Success:', result.success);
+      console.log('📊 DEBUG: Response Data:', result.data);
       
       if (result.success) {
         console.log('✅ DEBUG: Profile picture uploaded successfully');
         console.log('✅ DEBUG: Full result:', JSON.stringify(result, null, 2));
         
+        // Get uploaded image URL from response
+        const uploadedImageUrl = result.data?.data?.profilePictureUrl || result.data?.profilePictureUrl;
+        console.log('📸 DEBUG: Uploaded image URL:', uploadedImageUrl);
+        
+        // Update imageData with the uploaded URL
+        const updatedImageData = {
+          ...imageData,
+          uploadedUrl: uploadedImageUrl,
+          isUploaded: true
+        };
+        
         Alert.alert('Success', 'Profile picture uploaded successfully!');
         
-        // Call the callback with the uploaded image data
-        onImageSelected && onImageSelected(imageData);
+        // Call the callback with the updated image data including uploaded URL
+        onImageSelected && onImageSelected(updatedImageData);
       } else {
         console.log('❌ DEBUG: Upload failed');
         console.log('❌ DEBUG: Error:', result.error);
         Alert.alert('Upload Failed', result.error || 'Failed to upload profile picture. Please try again.');
+        // Still call callback with local image data
+        onImageSelected && onImageSelected(imageData);
       }
     } catch (error) {
       console.error('💥 DEBUG: Exception in uploadProfilePicture:', error);
       console.error('💥 DEBUG: Error type:', typeof error);
       console.error('💥 DEBUG: Error message:', error.message);
       Alert.alert('Upload Error', error.message || 'Failed to upload profile picture. Please try again.');
+      // Still call callback with local image data
+      onImageSelected && onImageSelected(imageData);
     } finally {
       setIsUploading(false);
     }
-    */
   };
 
   const requestCameraPermission = async () => {

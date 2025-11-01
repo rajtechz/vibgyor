@@ -167,20 +167,9 @@ function PreferencesScreen({ navigation }) {
       if (result.success && result.data?.success) {
         console.log('✅ DEBUG: Preferences profile updated successfully');
         
-        // Check next step from response
-        const nextStep = result.data?.data?.nextStep || result.data?.data?.profileCompletionStep;
-        console.log('📊 DEBUG: Next step:', nextStep);
-        
-        // Navigate to appropriate next screen based on nextStep
-        if (nextStep === 'location') {
-          navigation.navigate('Location');
-        } else if (nextStep === 'upload_id') {
-          navigation.navigate('UploadID');
-        } else {
-          // Default to Location screen if no specific next step
-          console.log('📊 DEBUG: No specific next step, navigating to Location');
-          navigation.navigate('Location');
-        }
+        // Navigate to UploadID screen after preferences
+        console.log('📊 DEBUG: Navigating to UploadID screen');
+        navigation.navigate('UploadID');
       } else {
         console.log('❌ DEBUG: Preferences profile update failed');
         console.log('❌ DEBUG: Error:', result.error);
