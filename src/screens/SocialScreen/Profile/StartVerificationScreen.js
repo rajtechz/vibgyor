@@ -33,9 +33,9 @@ const VideoCameraIcon = ({ width = 120, height = 120 }) => (
       rx="6"
       stroke="#8A52F3"
       strokeWidth="3.5"
-      fill="none"
-    />
-    {/* Large circular lens in center */}
+      fill="none"/>
+   
+   
     <Circle
       cx="50"
       cy="57.5"
