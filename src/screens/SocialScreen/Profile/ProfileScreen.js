@@ -261,10 +261,11 @@ function ProfileScreen() {
         setIsLoading(false);
       }
     };
-
     fetchProfile();
   }, [authState.isAuthenticated, authState.accessToken]);
-
+  // Derive followers/following counts from profileData
+  const followingCount = Array.isArray(profileData?.following) ? profileData.following.length : 0;
+  const followersCount = Array.isArray(profileData?.followers) ? profileData.followers.length : 0;
   // Debug profile picture URL when profileData changes
   useEffect(() => {
     if (profileData) {
@@ -360,7 +361,7 @@ function ProfileScreen() {
               style={styles.menuButton}
               onPress={handleHamburgerPress}
             >
-              <ProfileHamburgerIcon width={24} height={24} />
+              <ProfileHamburgerIcon width={24} height={24} /> 
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -387,10 +388,7 @@ function ProfileScreen() {
                   console.log('✅ ProfileScreen: Image dimensions loaded');
                 }}
                 onError={(error) => {
-                  console.log('❌ ProfileScreen: Error loading profile picture');
-                  console.log('❌ Error details:', error.nativeEvent);
-                  console.log('❌ Error message:', error.nativeEvent?.error?.message);
-                  console.log('❌ URL that failed:', profileData.profilePictureUrl);
+                  
                   setImageError(true);
                 }}
               />
@@ -521,7 +519,6 @@ function ProfileScreen() {
           {activeTab === 'grid' ? <PostsTab navigation={navigation} /> : <ReelsTab />}
         </View>
 
-      
       </ScrollView>
       )}
     </CommonBackground>

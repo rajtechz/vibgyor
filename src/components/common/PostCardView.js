@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, Modal, TextInput } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { AccountVerifyBadge, HamburgerIcon, LikeIcon, CommentIcon, ShareIcon, TrashIcon } from '../icons/SvgIcons';
 import Svg, { Path } from 'react-native-svg';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const PostCardView = ({ post, onPress, onCommentPress, showCommentInput, commentText, onCommentTextChange, onPostComment, onLikePress }) => {
+  const navigation = useNavigation();
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [isLiked, setIsLiked] = useState(false);
@@ -55,6 +57,18 @@ const PostCardView = ({ post, onPress, onCommentPress, showCommentInput, comment
     }
   };
 
+  const handleLikeCountPress = (event) => {
+    event.stopPropagation(); // Prevent triggering the post press
+    // Navigate to Likes screen
+    navigation.navigate('Likes', { postId: post.id });
+  };
+
+  const handleCommentCountPress = (event) => {
+    event.stopPropagation(); // Prevent triggering the post press
+    // Navigate to Comments screen
+    navigation.navigate('Comments', { postId: post.id });
+  };
+
 
   return (
     <TouchableOpacity style={styles.postCard} onPress={onPress} activeOpacity={0.8}>
@@ -92,42 +106,56 @@ const PostCardView = ({ post, onPress, onCommentPress, showCommentInput, comment
       {/* Post Actions */}
       <View style={styles.postActions}>
         <View style={styles.leftActions}>
-          <TouchableOpacity 
-            style={styles.actionItem}
-            onPress={handleLikePress}
-          >
-            {isLiked ? (
-              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M20.84 4.61C20.3292 4.099 19.7228 3.69364 19.0554 3.41708C18.3879 3.14052 17.6725 2.99817 16.95 2.99817C16.2275 2.99817 15.5121 3.14052 14.8446 3.41708C14.1772 3.69364 13.5708 4.099 13.06 4.61L12 5.67L10.94 4.61C9.9083 3.5783 8.50903 2.9987 7.05 2.9987C5.59096 2.9987 4.19169 3.5783 3.16 4.61C2.1283 5.6417 1.5487 7.04097 1.5487 8.5C1.5487 9.95903 2.1283 11.3583 3.16 12.39L12 21.23L20.84 12.39C21.351 11.8792 21.7563 11.2728 22.0329 10.6053C22.3095 9.93789 22.4518 9.22248 22.4518 8.5C22.4518 7.77752 22.3095 7.06211 22.0329 6.39467C21.7563 5.72723 21.351 5.1208 20.84 4.61V4.61Z"
-                  fill="#FF0000"
-                />
-              </Svg>
-            ) : (
-              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M20.84 4.61C20.3292 4.099 19.7228 3.69364 19.0554 3.41708C18.3879 3.14052 17.6725 2.99817 16.95 2.99817C16.2275 2.99817 15.5121 3.14052 14.8446 3.41708C14.1772 3.69364 13.5708 4.099 13.06 4.61L12 5.67L10.94 4.61C9.9083 3.5783 8.50903 2.9987 7.05 2.9987C5.59096 2.9987 4.19169 3.5783 3.16 4.61C2.1283 5.6417 1.5487 7.04097 1.5487 8.5C1.5487 9.95903 2.1283 11.3583 3.16 12.39L12 21.23L20.84 12.39C21.351 11.8792 21.7563 11.2728 22.0329 10.6053C22.3095 9.93789 22.4518 9.22248 22.4518 8.5C22.4518 7.77752 22.3095 7.06211 22.0329 6.39467C21.7563 5.72723 21.351 5.1208 20.84 4.61V4.61Z"
-                  stroke="white"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-            )}
-            <Text style={styles.actionCount}>{likeCount}+</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionItem}
-            onPress={(e) => {
-              e.stopPropagation();
-              if (onCommentPress) {
-                onCommentPress(post.id);
-              }
-            }}
-          >
-            <CommentIcon width={20} height={20} />
-            <Text style={styles.actionCount}>{post.comments}+</Text>
-          </TouchableOpacity>
+          <View style={styles.actionItem}>
+            <TouchableOpacity 
+              onPress={handleLikePress}
+              style={styles.heartIconButton}
+            >
+              {isLiked ? (
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                  <Path
+                    d="M20.84 4.61C20.3292 4.099 19.7228 3.69364 19.0554 3.41708C18.3879 3.14052 17.6725 2.99817 16.95 2.99817C16.2275 2.99817 15.5121 3.14052 14.8446 3.41708C14.1772 3.69364 13.5708 4.099 13.06 4.61L12 5.67L10.94 4.61C9.9083 3.5783 8.50903 2.9987 7.05 2.9987C5.59096 2.9987 4.19169 3.5783 3.16 4.61C2.1283 5.6417 1.5487 7.04097 1.5487 8.5C1.5487 9.95903 2.1283 11.3583 3.16 12.39L12 21.23L20.84 12.39C21.351 11.8792 21.7563 11.2728 22.0329 10.6053C22.3095 9.93789 22.4518 9.22248 22.4518 8.5C22.4518 7.77752 22.3095 7.06211 22.0329 6.39467C21.7563 5.72723 21.351 5.1208 20.84 4.61V4.61Z"
+                    fill="#FF0000"
+                  />
+                </Svg>
+              ) : (
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                  <Path
+                    d="M20.84 4.61C20.3292 4.099 19.7228 3.69364 19.0554 3.41708C18.3879 3.14052 17.6725 2.99817 16.95 2.99817C16.2275 2.99817 15.5121 3.14052 14.8446 3.41708C14.1772 3.69364 13.5708 4.099 13.06 4.61L12 5.67L10.94 4.61C9.9083 3.5783 8.50903 2.9987 7.05 2.9987C5.59096 2.9987 4.19169 3.5783 3.16 4.61C2.1283 5.6417 1.5487 7.04097 1.5487 8.5C1.5487 9.95903 2.1283 11.3583 3.16 12.39L12 21.23L20.84 12.39C21.351 11.8792 21.7563 11.2728 22.0329 10.6053C22.3095 9.93789 22.4518 9.22248 22.4518 8.5C22.4518 7.77752 22.3095 7.06211 22.0329 6.39467C21.7563 5.72723 21.351 5.1208 20.84 4.61V4.61Z"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </Svg>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={handleLikeCountPress}
+              style={styles.likeCountButton}
+            >
+              <Text style={styles.actionCount}>{likeCount}+</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.actionItem}>
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                if (onCommentPress) {
+                  onCommentPress(post.id);
+                }
+              }}
+              style={styles.commentIconButton}
+            >
+              <CommentIcon width={20} height={20} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={handleCommentCountPress}
+              style={styles.commentCountButton}
+            >
+              <Text style={styles.actionCount}>{post.comments}+</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.rightAction}>
           <ShareIcon width={20} height={20} />
@@ -295,6 +323,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 20,
+  },
+  heartIconButton: {
+    padding: 4,
+  },
+  likeCountButton: {
+    paddingLeft: 6,
+  },
+  commentIconButton: {
+    padding: 4,
+  },
+  commentCountButton: {
+    paddingLeft: 6,
   },
   rightAction: {
     alignItems: 'center',

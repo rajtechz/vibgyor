@@ -265,6 +265,8 @@ function PronounsScreen({ navigation }) {
           />
         </View>
       </ScrollView>
+    =
+    
 
       <ErrorModal
         visible={errorModal.visible}

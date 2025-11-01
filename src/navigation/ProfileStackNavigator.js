@@ -21,6 +21,15 @@ import StartVerificationScreen from '../screens/SocialScreen/Profile/StartVerifi
 import MyPostScreen from '../screens/SocialScreen/Profile/MyPostScreen';
 import PostCardViewScreen from '../screens/SocialScreen/Profile/PostCardViewScreen';
 import OtherUserPostViewScreen from '../screens/SocialScreen/Profile/OtherUserPostViewScreen';
+import LikesScreen from '../screens/SocialScreen/Profile/LikesScreen';
+import CommentsScreen from '../screens/SocialScreen/Profile/CommentsScreen';
+import PersonalDetailsScreen from '../screens/ProfileSetup/PersonalDetailsScreen';
+import GenderScreen from '../screens/ProfileSetup/GenderScreen';
+import PronounsScreen from '../screens/ProfileSetup/PronounsScreen';
+import InterestsScreen from '../screens/ProfileSetup/InterestsScreen';
+import UploadIDScreen from '../screens/ProfileSetup/UploadIDScreen';
+import LocationScreen from '../screens/ProfileSetup/LocationScreen';
+import ViewPersonalDetailsScreen from '../screens/SocialScreen/Profile/ViewPersonalDetailsScreen';
 
 const Stack = createStackNavigator();
 
@@ -214,6 +223,69 @@ function ProfileStackNavigator() {
         <Stack.Screen 
           name="OtherUserPostView" 
           component={OtherUserPostViewScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="Likes" 
+          component={LikesScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="Comments" 
+          component={CommentsScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="PersonalDetails" 
+          component={PersonalDetailsScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="Gender" 
+          component={GenderScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="Pronouns" 
+          component={PronounsScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="LikesInterests" 
+          component={InterestsScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="UploadID" 
+          component={UploadIDScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="Location" 
+          component={LocationScreen}
+          options={{
+            cardStyle: { backgroundColor: '#140034' },
+          }}
+        />
+        <Stack.Screen 
+          name="ViewPersonalDetails" 
+          component={ViewPersonalDetailsScreen}
           options={{
             cardStyle: { backgroundColor: '#140034' },
           }}

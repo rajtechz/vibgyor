@@ -1,69 +1,100 @@
 import { API_CONFIG } from './config';
 import { store } from '../redux/store';
-import { isTokenExpired, refreshTokenIfNeeded } from '../utils/authUtils';
+import { isTokenExpired } from '../utils/authUtils';
 import { refreshAccessToken } from '../redux/slices/authSlice';
 
-// SIMPLE INTERCEPTOR: Get auth token and auto-refresh if expired
+// Request queue for handling concurrent requests during token refresh
+// If multiple requests get 401, they all wait for the same refresh promise
+let refreshTokenPromise = null;
+
+/**
+ * Refresh access token with queuing mechanism
+ * Prevents multiple simultaneous refresh calls
+ */
+const refreshToken = async () => {
+  // If already refreshing, return the existing promise
+  if (refreshTokenPromise) {
+    return refreshTokenPromise;
+  }
+
+  const state = store.getState();
+  const { refreshToken } = state.auth;
+
+  if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+    throw new Error('No refresh token available');
+  }
+
+  // Create refresh promise
+  refreshTokenPromise = (async () => {
+    try {
+      console.log('🔄 Client: Refreshing access token...');
+      const result = await store.dispatch(refreshAccessToken(refreshToken.trim()));
+
+      if (refreshAccessToken.fulfilled.match(result)) {
+        const newState = store.getState();
+        const newAccessToken = newState.auth.accessToken;
+
+        if (!newAccessToken) {
+          // Try to extract from response
+          const responseData = result.payload?.data || result.payload;
+          const extractedToken =
+            responseData?.data?.accessToken ||
+            responseData?.accessToken ||
+            result.payload?.accessToken;
+
+          if (extractedToken) {
+            console.log('✅ Client: Token refreshed successfully');
+            return extractedToken;
+          }
+        } else {
+          console.log('✅ Client: Token refreshed successfully');
+          return newAccessToken;
+        }
+      }
+
+      // Refresh failed
+      throw new Error('Token refresh failed');
+    } catch (error) {
+      console.error('❌ Client: Token refresh error:', error);
+      throw error;
+    } finally {
+      // Clear the promise so next refresh can happen
+      refreshTokenPromise = null;
+    }
+  })();
+
+  return refreshTokenPromise;
+};
+
+/**
+ * Get auth token and auto-refresh if expired
+ */
 const getAuthToken = async () => {
   try {
     const state = store.getState();
-    let { accessToken, refreshToken } = state.auth;
-    
+    let { accessToken } = state.auth;
+
     // If no access token, return null (user not logged in)
     if (!accessToken) {
-      console.log('🔑 Client: No access token found');
       return null;
     }
-    
-    // INTERCEPTOR LOGIC: Check if token expired BEFORE every API call
+
+    // Check if token expired BEFORE every API call
     if (isTokenExpired(accessToken)) {
-      console.log('⚠️ INTERCEPTOR: Access token expired, auto-refreshing...');
-      
-      // Check if refresh token is available
-      if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
-        console.log('❌ INTERCEPTOR: No valid refresh token available');
-        return null;
-      }
-      
+      console.log('⚠️ Client: Access token expired, refreshing...');
       try {
-        // Auto-refresh the token
-        console.log('🔄 INTERCEPTOR: Calling refreshAccessToken API...');
-        const result = await store.dispatch(refreshAccessToken(refreshToken.trim()));
-        
-        if (refreshAccessToken.fulfilled.match(result)) {
-          // Get new token from Redux state (updated by reducer)
-          const newState = store.getState();
-          const newAccessToken = newState.auth.accessToken;
-          
-          if (newAccessToken) {
-            console.log('✅ INTERCEPTOR: Token refreshed successfully, using new token');
-            return newAccessToken;
-          } else {
-            console.log('⚠️ INTERCEPTOR: Token refresh succeeded but no new token in state');
-            // Try to extract from response
-            const responseData = result.payload?.data || result.payload;
-            const extractedToken = responseData?.data?.accessToken || responseData?.accessToken || result.payload?.accessToken;
-            if (extractedToken) {
-              console.log('✅ INTERCEPTOR: Extracted token from response');
-              return extractedToken;
-            }
-          }
-        } else {
-          console.log('❌ INTERCEPTOR: Token refresh failed');
-          console.log('❌ INTERCEPTOR: Error:', result.error);
-          return null;
-        }
+        const newToken = await refreshToken();
+        return newToken;
       } catch (error) {
-        console.error('💥 INTERCEPTOR: Error during token refresh:', error);
+        console.error('❌ Client: Failed to refresh token:', error);
         return null;
       }
     }
-    
-    // Token is still valid, return it
-    console.log('✅ INTERCEPTOR: Access token is valid');
+
+    // Token is still valid
     return accessToken;
   } catch (error) {
-    console.log('❌ INTERCEPTOR: Error getting auth token:', error);
+    console.error('❌ Client: Error getting auth token:', error);
     return null;
   }
 };
@@ -73,21 +104,26 @@ const buildURL = (endpoint) => {
   return `${API_CONFIG.BASE_URL}${endpoint}`;
 };
 
-// Build headers with auth token
-// skipTokenCheck: true means don't check token expiry (used for refresh token API itself)
+/**
+ * Build headers with auth token
+ * @param {Object} customHeaders - Custom headers to add
+ * @param {boolean} skipTokenCheck - Skip token expiry check (for refresh token API)
+ * @returns {Promise<Object>} Headers object
+ */
 const buildHeaders = async (customHeaders = {}, skipTokenCheck = false) => {
   let token;
-  
+
   if (skipTokenCheck) {
-    // For refresh token API, just get token without expiry check
-    const state = store.getState();
-    token = state.auth.accessToken;
-    console.log('🔑 Client: Skipping token expiry check (refresh token API)');
+    // For refresh token API, don't add Authorization header
+    return {
+      ...API_CONFIG.HEADERS,
+      ...customHeaders,
+    };
   } else {
     // For all other APIs, check expiry and refresh if needed
     token = await getAuthToken();
   }
-  
+
   return {
     ...API_CONFIG.HEADERS,
     ...(token && { Authorization: `Bearer ${token}` }),
@@ -95,34 +131,6 @@ const buildHeaders = async (customHeaders = {}, skipTokenCheck = false) => {
   };
 };
 
-// Handle response
-const handleResponse = async (response) => {
-  console.log('🔍 handleResponse: Processing response');
-  console.log('📡 Response Status:', response.status);
-  console.log('📡 Response OK:', response.ok);
-  
-  if (!response.ok) {
-    console.log('❌ Response not OK, getting error data');
-    const errorText = await response.text();
-    console.log('📄 Error Response Text:', errorText);
-    
-    let errorData;
-    try {
-      errorData = JSON.parse(errorText);
-      console.log('📊 Parsed Error Data:', errorData);
-    } catch (parseError) {
-      console.log('❌ Error response is not JSON:', errorText);
-      errorData = { message: errorText };
-    }
-    
-    const errorMessage = errorData.message || `HTTP Error: ${response.status}`;
-    console.log('💥 Throwing Error:', errorMessage);
-    throw new Error(errorMessage);
-  }
-  
-  console.log('✅ Response is OK, parsing JSON');
-  return response.json();
-};
 
 // Generic request method with comprehensive interceptor
 const request = async (endpoint, options = {}, retryCount = 0) => {
@@ -134,8 +142,16 @@ const request = async (endpoint, options = {}, retryCount = 0) => {
   let headers;
   
   if (isRefreshTokenAPI) {
-    // For refresh token API, skip token expiry check
-    headers = await buildHeaders(options.headers, true);
+    // For refresh token API, do NOT add Authorization header
+    // Refresh token API doesn't need access token - only refreshToken in body
+    console.log('🔄 INTERCEPTOR: Refresh token API - skipping Authorization header');
+    headers = {
+      ...API_CONFIG.HEADERS,
+      ...options.headers,
+      // Explicitly remove Authorization if it exists
+    };
+    delete headers.Authorization; // Ensure no Authorization header
+    console.log('🔄 INTERCEPTOR: Headers for refresh token API (no auth):', Object.keys(headers));
   } else {
     // For all other APIs, check token expiry first (INTERCEPTOR LOGIC)
     headers = await buildHeaders(options.headers, false);
@@ -144,10 +160,15 @@ const request = async (endpoint, options = {}, retryCount = 0) => {
   // Remove headers from options to avoid override
   const { headers: _, ...otherOptions } = options;
   
+  // If body is FormData, remove Content-Type header (let fetch set it with boundary)
+  const isFormData = otherOptions.body instanceof FormData;
+  if (isFormData) {
+    delete headers['Content-Type'];
+  }
+  
   const config = {
     method: options.method || 'GET',
     headers,
-    timeout: API_CONFIG.TIMEOUT,
     ...otherOptions,
   };
 
@@ -169,146 +190,72 @@ const request = async (endpoint, options = {}, retryCount = 0) => {
     // Clone response for potential retry (response body can only be read once)
     const responseClone = response.clone();
     
-    // INTERCEPTOR: Handle 401 Unauthorized - Check for "Access token expired" message
-    if (response.status === 401 && retryCount === 0) {
-      console.log('⚠️ INTERCEPTOR: Received 401, checking error message...');
-      
-      // Parse response body to check for specific error message
+    // Handle 401 Unauthorized - Try to refresh token and retry
+    if (response.status === 401 && retryCount === 0 && !isRefreshTokenAPI) {
+      const state = store.getState();
+      const { refreshToken: refreshTokenValue } = state.auth;
+
+      // Check if we have a refresh token
+      if (refreshTokenValue && typeof refreshTokenValue === 'string' && refreshTokenValue.trim().length > 0) {
+        try {
+          // If refresh is already in progress, wait for it
+          if (refreshTokenPromise) {
+            console.log('⏳ Client: Waiting for token refresh to complete...');
+            const newToken = await refreshTokenPromise;
+
+            // Retry original request with new token
+            return request(endpoint, { ...options }, retryCount + 1);
+          } else {
+            // Trigger refresh
+            console.log('🔄 Client: Received 401, refreshing token...');
+            const newToken = await refreshToken();
+
+            if (newToken) {
+              // Retry original request with new token
+              return request(endpoint, { ...options }, retryCount + 1);
+            }
+          }
+        } catch (refreshError) {
+          console.error('❌ Client: Token refresh failed:', refreshError);
+          // Clear tokens and throw error (should trigger logout)
+          const { clearAuth } = await import('../redux/slices/authSlice');
+          store.dispatch(clearAuth());
+          throw new Error('Token refresh failed. Please login again.');
+        }
+      }
+
+      // No refresh token available - user needs to login
       const errorText = await responseClone.text();
       let errorData;
       try {
         errorData = JSON.parse(errorText);
-        console.log('📊 INTERCEPTOR: Parsed error response:', JSON.stringify(errorData, null, 2));
-      } catch (parseError) {
-        errorData = { message: errorText };
+      } catch {
+        errorData = { message: errorText || 'Unauthorized' };
       }
-      
-      // Check if error message is "Access token expired"
-      const isTokenExpiredError = errorData?.message === 'Access token expired' || 
-                                  errorData?.code === 'TokenExpiredError' ||
-                                  errorData?.message?.toLowerCase().includes('token expired');
-      
-      if (isTokenExpiredError) {
-        console.log('🔴 INTERCEPTOR: Access token expired detected!');
-        console.log('🔴 INTERCEPTOR: Error details:', {
-          message: errorData?.message,
-          code: errorData?.code,
-          status: errorData?.status
-        });
-        
-        const state = store.getState();
-        const { refreshToken } = state.auth;
-        
-        console.log('🔄 INTERCEPTOR: Refresh token available:', refreshToken ? 'Present' : 'Missing');
-        console.log('🔄 INTERCEPTOR: Refresh token type:', typeof refreshToken);
-        console.log('🔄 INTERCEPTOR: Refresh token length:', refreshToken?.length);
-        
-        if (refreshToken && typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
-          try {
-            console.log('🔄 INTERCEPTOR: Calling refresh token API...');
-            // Call refresh token API
-            const refreshResult = await store.dispatch(refreshAccessToken(refreshToken.trim()));
-            
-            if (refreshAccessToken.fulfilled.match(refreshResult)) {
-              // Extract new access token from response
-              const responseData = refreshResult.payload?.data || refreshResult.payload;
-              const newAccessToken = responseData?.data?.accessToken || 
-                                    responseData?.accessToken || 
-                                    refreshResult.payload?.accessToken ||
-                                    store.getState().auth.accessToken;
-              
-              if (newAccessToken) {
-                console.log('✅ INTERCEPTOR: New access token received!');
-                console.log('🔑 INTERCEPTOR: New Access Token:', newAccessToken);
-                console.log('🔑 INTERCEPTOR: New Access Token (first 50 chars):', newAccessToken.substring(0, 50) + '...');
-                console.log('🔑 INTERCEPTOR: New Access Token (last 50 chars):', '...' + newAccessToken.substring(newAccessToken.length - 50));
-                console.log('🔑 INTERCEPTOR: New Access Token Length:', newAccessToken.length);
-              } else {
-                console.log('⚠️ INTERCEPTOR: Token refresh succeeded but no access token in response');
-              }
-              
-              console.log('🔄 INTERCEPTOR: Retrying original request with new token...');
-              
-              // Retry the request with new token
-              const newHeaders = await buildHeaders(options.headers);
-              const retryConfig = {
-                ...config,
-                headers: newHeaders,
-              };
-              
-              const retryResponse = await fetch(url, retryConfig);
-              
-              if (!retryResponse.ok) {
-                const retryErrorText = await retryResponse.text();
-                let retryErrorData;
-                try {
-                  retryErrorData = JSON.parse(retryErrorText);
-                } catch {
-                  retryErrorData = { message: retryErrorText };
-                }
-                throw new Error(retryErrorData.message || `HTTP Error: ${retryResponse.status}`);
-              }
-              
-              const retryResponseText = await retryResponse.text();
-              let data;
-              try {
-                data = JSON.parse(retryResponseText);
-              } catch (parseError) {
-                throw new Error(`Invalid JSON response: ${retryResponseText}`);
-              }
-              
-              console.log(`✅ INTERCEPTOR: Original request retried successfully: ${config.method} ${url}`);
-              return data;
-            } else {
-              console.log('❌ INTERCEPTOR: Token refresh failed');
-              console.log('❌ INTERCEPTOR: Refresh result error:', refreshResult.error);
-              throw new Error('Token refresh failed. Please login again.');
-            }
-          } catch (refreshError) {
-            console.error('💥 INTERCEPTOR: Error during token refresh:', refreshError);
-            throw new Error('Token refresh failed. Please login again.');
-          }
-        } else {
-          console.log('❌ INTERCEPTOR: No valid refresh token available');
-          throw new Error('Authentication failed. Please login again.');
-        }
-      } else {
-        // 401 but not token expired error, throw original error
-        console.log('⚠️ INTERCEPTOR: 401 received but not token expired error');
-        throw new Error(errorData?.message || `HTTP Error: ${response.status}`);
-      }
+      throw new Error(errorData.message || 'Authentication failed. Please login again.');
     }
     
-    // Log response text before parsing
+    // Parse response
     const responseText = await response.text();
-    console.log('📄 Raw Response Text:', responseText);
-    
+
     if (!response.ok) {
       let errorData;
       try {
         errorData = JSON.parse(responseText);
       } catch {
-        errorData = { message: responseText };
+        errorData = { message: responseText || `HTTP Error: ${response.status}` };
       }
-      const errorMessage = errorData.message || `HTTP Error: ${response.status}`;
-      console.log('💥 Throwing Error:', errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(errorData.message || `HTTP Error: ${response.status}`);
     }
-    
-    // Parse JSON manually for better debugging
+
+    // Parse successful response
     let data;
     try {
       data = JSON.parse(responseText);
-      console.log('✅ Parsed JSON Response:', data);
     } catch (parseError) {
-      console.error('❌ JSON Parse Error:', parseError);
-      console.log('📄 Raw Response (not JSON):', responseText);
       throw new Error(`Invalid JSON response: ${responseText}`);
     }
-    
-    console.log(`✅ API Response: ${config.method} ${url}`, data);
-    console.log('🔍 Full Response Data:', JSON.stringify(data, null, 2));
-    
+
     return data;
   } catch (error) {
     console.error(`❌ API Error: ${config.method} ${url}`, error);
@@ -328,10 +275,14 @@ const get = async (endpoint, options = {}) => {
 };
 
 const post = async (endpoint, data, options = {}) => {
+  // If data is FormData, don't stringify it - pass it directly
+  // Otherwise, JSON stringify it
+  const body = data instanceof FormData ? data : JSON.stringify(data);
+  
   return request(endpoint, {
     ...options,
     method: 'POST',
-    body: JSON.stringify(data),
+    body,
   });
 };
 

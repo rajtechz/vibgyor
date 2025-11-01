@@ -119,11 +119,53 @@ const uiSlice = createSlice({
         state.isStoryScreenActive = true;
         state.isChatScreenActive = false;
         state.isCallScreenActive = false;
+      } else if (action.payload === 'Crop') {
+        console.log('✂️ Redux: setCurrentScreen called with Crop - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('✂️ Redux: isTabBarVisible set to:', state.isTabBarVisible);
+      } else if (action.payload === 'Filter') {
+        console.log('🎨 Redux: setCurrentScreen called with Filter - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('🎨 Redux: isTabBarVisible set to:', state.isTabBarVisible);
       } else if (action.payload === 'LikeResult') {
         state.isTabBarVisible = false;
         state.isChatScreenActive = false;
         state.isCallScreenActive = false;
         state.isStoryScreenActive = false;
+      } else if (action.payload === 'Likes') {
+        console.log('❤️ Redux: setCurrentScreen called with Likes - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('❤️ Redux: isTabBarVisible set to:', state.isTabBarVisible);
+      } else if (action.payload === 'Comments') {
+        console.log('💬 Redux: setCurrentScreen called with Comments - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('💬 Redux: isTabBarVisible set to:', state.isTabBarVisible);
+      } else if (action.payload === 'ViewPersonalDetails') {
+        console.log('👤 Redux: setCurrentScreen called with ViewPersonalDetails - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('👤 Redux: isTabBarVisible set to:', state.isTabBarVisible);
+      } else if (action.payload === 'MyPosts') {
+        console.log('📝 Redux: setCurrentScreen called with MyPosts - hiding tab bar');
+        state.isTabBarVisible = false;
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        console.log('📝 Redux: isTabBarVisible set to:', state.isTabBarVisible);
       } else if (action.payload === 'CelebrationMatch') {
         console.log('🎉 Redux: setCurrentScreen called with CelebrationMatch - hiding tab bar');
         state.isTabBarVisible = false;
