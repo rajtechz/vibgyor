@@ -518,22 +518,15 @@ export const authAPI = {
     console.log('📸 Image Data:', imageData);
     console.log('🔑 Access Token:', accessToken ? 'Present' : 'Missing');
     console.log('🔗 Endpoint:', API_ENDPOINTS.UPLOAD_PROFILE_PICTURE);
-    console.log('🌐 Full URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`);
+    
+    const uploadUrl = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`;
+    console.log('🌐 Full URL:', uploadUrl);
 
     if (!accessToken) {
-      console.log('❌ AuthAPI: No access token provided');
+      console.log('❌ AuthAPI: Missing access token for profile picture upload');
       return {
         success: false,
         error: 'Missing access token',
-        message: 'Failed to upload profile picture',
-      };
-    }
-
-    if (!imageData || !imageData.uri) {
-      console.log('❌ AuthAPI: Invalid image data');
-      return {
-        success: false,
-        error: 'Invalid image data',
         message: 'Failed to upload profile picture',
       };
     }
@@ -542,35 +535,36 @@ export const authAPI = {
       // Create FormData for file upload (React Native format)
       const formData = new FormData();
       
-      // React Native FormData requires specific format
-      // The file object should have: uri, type, name (or filename)
-      const fileExtension = imageData.uri.split('.').pop() || 'jpg';
+      // Prepare file object for FormData
+      const fileExtension = imageData.fileName?.split('.').pop() || 'jpg';
+      const mimeType = imageData.type || `image/${fileExtension === 'png' ? 'png' : 'jpeg'}`;
       const fileName = imageData.fileName || `profile_picture_${Date.now()}.${fileExtension}`;
       
       formData.append('file', {
         uri: imageData.uri,
-        type: imageData.type || 'image/jpeg',
+        type: mimeType,
         name: fileName,
       });
 
       console.log('📤 FormData created');
       console.log('📤 File URI:', imageData.uri);
-      console.log('📤 File Type:', imageData.type || 'image/jpeg');
+      console.log('📤 File Type:', mimeType);
       console.log('📤 File Name:', fileName);
-
-      // Prepare headers
-      const headers = {
-        'Authorization': `Bearer ${accessToken}`,
-        // Note: Don't set Content-Type - React Native will set it automatically with boundary
-        // Setting it manually will break FormData uploads
-      };
-
-      console.log('📤 Request Headers:', { ...headers, Authorization: 'Bearer ***' });
-      console.log('📤 Request Method: POST');
-      console.log('📤 Request URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`);
+      console.log('📤 FormData entries:');
+      if (formData._parts) {
+        for (let [key, value] of formData._parts) {
+          console.log(`📤 ${key}:`, typeof value === 'object' ? JSON.stringify(value, null, 2) : value);
+        }
+      }
 
       // Make API call with FormData
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`, {
+      console.log('🚀 Making fetch request to:', uploadUrl);
+      console.log('🚀 Method: POST');
+      console.log('🚀 Headers:', {
+        'Authorization': `Bearer ${accessToken.substring(0, 20)}...`,
+      });
+      
+      const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: headers,
         body: formData,
@@ -797,9 +791,12 @@ export const authAPI = {
   refreshAccessToken: async (refreshToken) => {
     console.log('🔄 AuthAPI: refreshAccessToken called');
     console.log('🔄 Refresh Token:', refreshToken ? 'Present' : 'Missing');
+    console.log('🔄 Refresh Token Type:', typeof refreshToken);
+    console.log('🔄 Refresh Token Length:', refreshToken?.length);
+    console.log('🔄 Refresh Token Value (first 20 chars):', refreshToken?.substring(0, 20));
 
     if (!refreshToken) {
-      console.log('❌ DEBUG: Missing refresh token');
+      console.log('❌ AuthAPI: Missing refresh token');
       return {
         success: false,
         error: 'Missing refresh token',
@@ -807,30 +804,161 @@ export const authAPI = {
       };
     }
 
-    try {
-      console.log('🌐 Making request to:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPDATE_ACCESS_TOKEN}`);
+    // Validate refresh token is a string and not empty
+    if (typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+      console.log('❌ AuthAPI: Invalid refresh token format');
+      return {
+        success: false,
+        error: 'Invalid refresh token format',
+        message: 'Failed to refresh access token',
+      };
+    }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPDATE_ACCESS_TOKEN}`, {
+    try {
+      const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPDATE_ACCESS_TOKEN}`;
+      
+      // Ensure refreshToken is properly trimmed and formatted
+      const cleanRefreshToken = refreshToken.trim();
+      
+      // Create request body exactly as Postman format
+      const requestBody = {
+        refreshToken: cleanRefreshToken
+      };
+      
+      // Stringify with no extra spaces (exact Postman format)
+      const requestBodyString = JSON.stringify(requestBody);
+      
+      // Verify the stringified body can be parsed back
+      try {
+        const verifyBody = JSON.parse(requestBodyString);
+        console.log('✅ Request body verification - can parse back:', verifyBody);
+        console.log('✅ Refresh token in parsed body:', verifyBody.refreshToken ? 'Present' : 'Missing');
+        console.log('✅ Refresh token value matches:', verifyBody.refreshToken === cleanRefreshToken);
+      } catch (verifyError) {
+        console.log('❌ Request body verification failed:', verifyError);
+      }
+      
+      console.log('🌐 Making request to:', url);
+      console.log('📤 Request Method: POST');
+      console.log('📤 Request Body Object:', requestBody);
+      console.log('📤 Request Body String:', requestBodyString);
+      console.log('📤 Request Body String Length:', requestBodyString.length);
+      console.log('📤 Refresh Token (full):', cleanRefreshToken);
+      console.log('📤 Refresh Token Length:', cleanRefreshToken.length);
+
+      // Build headers explicitly - ensure Content-Type is set correctly
+      // CRITICAL: Content-Type must be 'application/json' for server to parse body correctly
+      const headers = {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json',
+      };
+      
+      console.log('📋 Request Headers:', JSON.stringify(headers, null, 2));
+      console.log('📋 Request Body Type:', typeof requestBodyString);
+      console.log('📋 Request Body is String:', typeof requestBodyString === 'string');
+      console.log('📋 Request Body Encoding:', requestBodyString);
+
+      // CRITICAL: Ensure body is a properly formatted string
+      // React Native fetch might need explicit encoding
+      const finalBody = typeof requestBodyString === 'string' 
+        ? requestBodyString 
+        : JSON.stringify(requestBody);
+
+      // Make the fetch request with explicit body string
+      console.log('🚀 Sending fetch request...');
+      console.log('🚀 Request config:', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${refreshToken}`,
-        },
+        url: url,
+        headers: headers,
+        bodyType: typeof finalBody,
+        bodyLength: finalBody.length,
+        bodyPreview: finalBody.substring(0, 100),
+        bodyFull: finalBody, // Log full body for debugging
       });
+      
+      // Create fetch request with explicit configuration
+      const fetchOptions = {
+        method: 'POST',
+        headers: headers,
+        body: finalBody,
+      };
+      
+      console.log('🚀 Final fetch options:', {
+        method: fetchOptions.method,
+        headers: fetchOptions.headers,
+        bodyLength: fetchOptions.body.length,
+        bodyValue: fetchOptions.body,
+      });
+      
+      const response = await fetch(url, fetchOptions);
 
       console.log('📡 Response Status:', response.status);
+      console.log('📡 Response Status Text:', response.statusText);
       console.log('📡 Response OK:', response.ok);
+      console.log('📋 Response Headers:', JSON.stringify([...response.headers.entries()]));
 
       if (!response.ok) {
-        const errorText = await response.text();
+        // Clone response before reading to avoid consuming the stream
+        const responseClone = response.clone();
+        const errorText = await responseClone.text();
         console.log('❌ Response Error Text:', errorText);
+        
+        // Try to parse error response for better debugging
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+          console.log('❌ Parsed Error Data:', JSON.stringify(errorData, null, 2));
+          
+          // If server says "No refresh token", log the request details for debugging
+          if (errorData.message && errorData.message.includes('No refresh token')) {
+            console.log('⚠️ Server says "No refresh token" but we sent it');
+            console.log('⚠️ Request URL:', url);
+            console.log('⚠️ Request Method: POST');
+            console.log('⚠️ Request Headers:', JSON.stringify(headers, null, 2));
+            console.log('⚠️ Request Body (sent):', requestBodyString);
+            console.log('⚠️ Request Body (parsed back):', JSON.parse(requestBodyString));
+            console.log('⚠️ Refresh Token Value (full):', cleanRefreshToken);
+            console.log('⚠️ Refresh Token Length:', cleanRefreshToken.length);
+          }
+        } catch (parseError) {
+          console.log('❌ Error response is not JSON');
+        }
+        
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
+      // Parse response - could be JSON body or cookies
       const responseData = await response.json();
       console.log('✅ AuthAPI: refreshAccessToken success');
       console.log('📊 Response Data:', JSON.stringify(responseData, null, 2));
+      
+      // Check for accessToken in response (could be in data.data.accessToken or data.accessToken)
+      const extractedAccessToken = responseData?.data?.data?.accessToken || 
+                                   responseData?.data?.accessToken || 
+                                   responseData?.accessToken;
+      const extractedRefreshToken = responseData?.data?.data?.refreshToken || 
+                                    responseData?.data?.refreshToken || 
+                                    responseData?.refreshToken;
+      
+      console.log('🔑 Extracted Access Token:', extractedAccessToken ? 'Present' : 'Missing');
+      console.log('🔄 Extracted Refresh Token:', extractedRefreshToken ? 'Present' : 'Missing');
+      
+      // Also check for jwt cookie in response headers
+      const setCookieHeader = response.headers.get('set-cookie');
+      if (setCookieHeader) {
+        console.log('🍪 Set-Cookie Header:', setCookieHeader);
+        // Extract jwt from cookie if present
+        const jwtMatch = setCookieHeader.match(/jwt=([^;]+)/);
+        if (jwtMatch && jwtMatch[1]) {
+          console.log('🍪 JWT found in cookie:', jwtMatch[1].substring(0, 30) + '...');
+          // Use jwt from cookie as accessToken if not in body
+          if (!extractedAccessToken && jwtMatch[1]) {
+            responseData.data = responseData.data || {};
+            responseData.data.accessToken = jwtMatch[1];
+            console.log('✅ Using JWT from cookie as accessToken');
+          }
+        }
+      }
 
       return {
         success: true,
@@ -839,10 +967,7 @@ export const authAPI = {
       };
     } catch (error) {
       console.log('❌ AuthAPI: refreshAccessToken error');
-      console.log('💥 Error Type:', typeof error);
-      console.log('💥 Error Message:', error.message);
-      console.log('💥 Error Stack:', error.stack);
-      console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
+      
 
       return {
         success: false,

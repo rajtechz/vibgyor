@@ -116,7 +116,7 @@ function PersonalDetailsScreen({ navigation }) {
     };
   }, [formData]);
 
-  // Get current profile step on component mount - check immediately to prevent wrong screen
+  // Get current profile step on component mount
   useEffect(() => {
     const getCurrentStep = async () => {
       try {
@@ -1114,5 +1114,4 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend-Regular',
   },
 });
-
 export default PersonalDetailsScreen;

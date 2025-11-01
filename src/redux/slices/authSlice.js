@@ -81,9 +81,22 @@ const refreshAccessToken = createAsyncThunk(
   async (refreshToken, { rejectWithValue }) => {
     console.log('🔄 Redux: refreshAccessToken thunk called');
     console.log('🔄 Refresh Token:', refreshToken ? 'Present' : 'Missing');
+    console.log('🔄 Refresh Token Type:', typeof refreshToken);
+    console.log('🔄 Refresh Token Length:', refreshToken?.length);
+    console.log('🔄 Refresh Token First 30 chars:', refreshToken?.substring(0, 30));
+    console.log('🔄 Refresh Token Last 30 chars:', refreshToken?.substring(refreshToken?.length - 30));
+    
+    // Validate refreshToken before passing to API
+    if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+      console.log('❌ Redux: Invalid refresh token passed to thunk');
+      return rejectWithValue('Invalid refresh token');
+    }
     
     try {
-      const response = await authAPI.refreshAccessToken(refreshToken);
+      // Trim and validate refresh token before passing to API
+      const cleanRefreshToken = refreshToken.trim();
+      console.log('🔄 Redux: Passing clean refresh token to API, length:', cleanRefreshToken.length);
+      const response = await authAPI.refreshAccessToken(cleanRefreshToken);
       console.log('📊 Redux: Refresh Token API Response:', JSON.stringify(response, null, 2));
       
       if (response.success) {
@@ -376,15 +389,21 @@ const authSlice = createSlice({
       .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.isRefreshingToken = false;
         
-        // Handle nested API response structure (response.data.data.accessToken)
+        // Handle API response structure: { success, data: { accessToken } }
+        // action.payload is the full responseData from authAPI
         const responseData = action.payload?.data || action.payload;
-        const newAccessToken = responseData?.accessToken || action.payload?.accessToken;
-        const newRefreshToken = responseData?.refreshToken || action.payload?.refreshToken;
+        const newAccessToken = responseData?.data?.accessToken || responseData?.accessToken || action.payload?.accessToken;
+        const newRefreshToken = responseData?.data?.refreshToken || responseData?.refreshToken || action.payload?.refreshToken;
+        
+        console.log('🔄 Redux: Processing token refresh response');
+        console.log('🔄 Response structure:', JSON.stringify(action.payload, null, 2));
+        console.log('🔄 Extracted accessToken:', newAccessToken ? 'Present' : 'Missing');
         
         // Update access token with new token from response
         if (newAccessToken) {
           state.accessToken = newAccessToken;
-          console.log('✅ Redux: Access token refreshed successfully');
+          state.isAuthenticated = true; // Ensure user remains authenticated
+          console.log('✅ Redux: Access token refreshed and stored successfully');
           
           // Store new access token in AsyncStorage
           import('../../utils/authUtils').then(({ setAuthTokens }) => {
@@ -393,7 +412,10 @@ const authSlice = createSlice({
               newRefreshToken || state.refreshToken
             );
           });
+        } else {
+          console.log('⚠️ Redux: No accessToken in refresh response');
         }
+        
         if (newRefreshToken) {
           state.refreshToken = newRefreshToken;
           console.log('✅ Redux: Refresh token updated successfully');

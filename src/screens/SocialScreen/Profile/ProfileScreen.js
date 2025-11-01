@@ -324,6 +324,18 @@ function ProfileScreen() {
     }
   };
 
+  // Format count for display (e.g., 1500 -> 1.5K, 10000 -> 10K)
+  const formatCount = (count) => {
+    if (!count || count === 0) return '0';
+    if (count < 1000) return count.toString();
+    if (count < 1000000) {
+      const thousands = (count / 1000).toFixed(1);
+      return thousands.endsWith('.0') ? `${thousands.split('.')[0]}K` : `${thousands}K`;
+    }
+    const millions = (count / 1000000).toFixed(1);
+    return millions.endsWith('.0') ? `${millions.split('.')[0]}M` : `${millions}M`;
+  };
+
   return (
     <CommonBackground>
       <StatusBar barStyle="light-content" backgroundColor="#140034" />
@@ -394,14 +406,14 @@ function ProfileScreen() {
                 style={styles.statItem}
                 onPress={() => navigation.navigate('MyFollowing')}
               >
-                <Text style={styles.statNumber}>{followingCount}</Text>
+                <Text style={styles.statNumber}>{formatCount(profileData?.following?.length || 0)}</Text>
                 <Text style={styles.statLabel}>Following</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.statItem}
                 onPress={() => navigation.navigate('MyFollowers')}
               >
-                <Text style={styles.statNumber}>{followersCount}</Text>
+                <Text style={styles.statNumber}>{formatCount(profileData?.followers?.length || 0)}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
               </TouchableOpacity>
             </View>
@@ -446,7 +458,9 @@ function ProfileScreen() {
         <View style={styles.nameSection}>
           <View style={styles.nameRow}>
             <Text style={styles.fullName}>{profileData?.fullName || 'Full Name'}</Text>
-            <AccountVerifyBadge width={20} height={20} />
+            {profileData?.verificationStatus === 'approved' && (
+              <AccountVerifyBadge width={20} height={20} />
+            )}
           </View>
           <Text style={styles.gender}>
             {profileData?.gender || ''} {profileData?.pronouns ? `(${profileData.pronouns})` : ''}
