@@ -8,6 +8,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { checkAuthStatus, isTokenExpired } from '../utils/authUtils';
 import { getInitialRoute } from '../utils/appConfig';
 import { setTokens, setProfileCompletion, refreshAccessToken } from '../redux/slices/authSlice';
+import { store } from '../redux/store';
 import AuthNavigator from './AuthNavigator';
 import ProfileSetupNavigator from './ProfileSetupNavigator';
 import MainTabNavigator from './MainTabNavigator';
@@ -96,15 +97,73 @@ function RootNavigator() {
             }));
           }
           
-          // Set profile completion status
-          dispatch(setProfileCompletion({
-            isCompleted: authStatus.isProfileSetupDone,
-            step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
-          }));
+          // Get token from Redux state (it might have been refreshed)
+          const reduxState = store.getState();
+          const currentAccessToken = reduxState.auth.accessToken || authStatus.accessToken;
+          
+          // Check profile status from API if we have a valid token
+          if (currentAccessToken && !isTokenExpired(currentAccessToken)) {
+            try {
+              console.log('📊 RootNavigator: Checking profile status from API...');
+              const { authAPI } = await import('../api/authAPI');
+              const profileStepResult = await authAPI.getProfileStep(currentAccessToken);
+              
+              if (profileStepResult.success) {
+                const currentStep = profileStepResult.data?.data?.currentStep || profileStepResult.data?.data?.profileCompletionStep;
+                const isProfileCompleted = profileStepResult.data?.data?.isProfileCompleted || 
+                                          profileStepResult.data?.data?.isCurrentStepCompleted ||
+                                          currentStep === 'completed';
+                
+                console.log('📊 RootNavigator: API Profile Status - Step:', currentStep, 'Completed:', isProfileCompleted);
+                
+                // Update Redux and AsyncStorage with actual status from API
+                dispatch(setProfileCompletion({
+                  isCompleted: isProfileCompleted,
+                  step: isProfileCompleted ? 'completed' : currentStep || 'personal_details'
+                }));
+              } else {
+                console.log('⚠️ RootNavigator: Failed to get profile status from API, using AsyncStorage value');
+                dispatch(setProfileCompletion({
+                  isCompleted: authStatus.isProfileSetupDone,
+                  step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
+                }));
+              }
+            } catch (error) {
+              console.error('❌ RootNavigator: Error checking profile status from API:', error);
+              // Fallback to AsyncStorage value
+              dispatch(setProfileCompletion({
+                isCompleted: authStatus.isProfileSetupDone,
+                step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
+              }));
+            }
+          } else {
+            // Set profile completion status from AsyncStorage
+            dispatch(setProfileCompletion({
+              isCompleted: authStatus.isProfileSetupDone,
+              step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
+            }));
+          }
         }
         
-        // Determine initial route
-        const route = await getInitialRoute(checkAuthStatus);
+        // Determine initial route - use actual profile status from Redux (updated by API check)
+        let route;
+        if (authStatus.accessToken && authStatus.refreshToken) {
+          // If user is logged in, determine route based on actual profile status from API
+          const reduxState = store.getState();
+          const profileCompleted = reduxState.auth.isProfileCompleted;
+          
+          if (profileCompleted) {
+            route = 'Main';
+            console.log('✅ RootNavigator: Profile is completed → Navigating to Main');
+          } else {
+            route = 'ProfileSetup';
+            console.log('ℹ️ RootNavigator: Profile not completed → Navigating to ProfileSetup');
+          }
+        } else {
+          // User not logged in, use getInitialRoute
+          route = await getInitialRoute(checkAuthStatus);
+        }
+        
         setInitialRoute(route);
         console.log('✅ RootNavigator: App starting with route:', route);
       } catch (error) {

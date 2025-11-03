@@ -531,7 +531,7 @@ export default function HomeScreen() {
             <NotificationBar navigation={navigation} />
 
             {/* Floating Action Button */}
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
                 style={styles.fab}
                 onPress={handleCreatePost}
                 activeOpacity={0.8}
@@ -544,7 +544,7 @@ export default function HomeScreen() {
                 >
                     <Text style={styles.fabText}>+</Text>
                 </LinearGradient>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
         </View>
     );
 }

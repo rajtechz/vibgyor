@@ -11,14 +11,14 @@ const getLocalServerUrl = () => {
   
   if (Platform.OS === 'android') {
     // Android emulator special IP to access host machine
-    return 'http://192.168.1.38:3000';
+    return 'http://192.168.29.119:3000';
   } else {
     // iOS simulator - localhost works fine
-    return 'http://192.168.1.38:3000';
+    return 'http://192.168.29.119:3000';
   }
   
   // For network IP testing (if server is bound to 0.0.0.0):
-  // return 'http://192.168.1.19:3000';
+  // return 'http://192.168.29.119:3000';
 };
 
 // Auth API Service

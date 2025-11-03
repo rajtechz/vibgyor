@@ -13,6 +13,7 @@ import { authAPI } from '../../api/authAPI';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import { setTokens, setVerifiedEmail, setProfileCompletion } from '../../redux/slices/authSlice';
+import { store } from '../../redux/store';
 
 function PersonalDetailsScreen({ navigation }) {
   const route = useRoute();
@@ -120,6 +121,17 @@ function PersonalDetailsScreen({ navigation }) {
   useEffect(() => {
     const getCurrentStep = async () => {
       try {
+        // Check Redux state first - if profile is already marked as completed, navigate immediately
+        const reduxState = store.getState();
+        if (reduxState.auth.isProfileCompleted) {
+          console.log('✅ PersonalDetails: Profile already completed (from Redux), navigating to Main');
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
+          return;
+        }
+        
         console.log('📊 DEBUG: Fetching current profile step...');
         const result = await authAPI.getProfileStep(authState.accessToken);
         
@@ -138,6 +150,12 @@ function PersonalDetailsScreen({ navigation }) {
           // Check if profile is completed
           if (currentStep === 'completed' || isCompleted) {
             console.log('✅ DEBUG: Profile is completed, navigating to home screen');
+            // Update Redux state
+            const { setProfileCompletion } = await import('../../redux/slices/authSlice');
+            store.dispatch(setProfileCompletion({
+              isCompleted: true,
+              step: 'completed'
+            }));
             // Profile is completed, navigate to home screen
             navigation.reset({
               index: 0,

@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: 'http://192.168.1.38:3000',
-  LOCAL_BASE_URL: 'http://192.168.1.38:3000',
+  BASE_URL: 'http://192.168.29.119:3000',
+  LOCAL_BASE_URL: 'http://192.168.29.119:3000',
   TIMEOUT: 10000,
   HEADERS: {
     'Content-Type': 'application/json',
