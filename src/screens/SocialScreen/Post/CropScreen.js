@@ -160,7 +160,14 @@ function CropScreen() {
     // Dispatch Redux actions to show tab bar before going back
     dispatch(showTabBar());
     dispatch(setCurrentScreen(null));
-    navigation.goBack();
+    
+    // Check if we can go back, otherwise navigate to PostMain
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // Fallback: navigate to PostMain if there's no previous screen
+      navigation.navigate('PostMain');
+    }
   };
 
   const handleImageCrop = (res) => {

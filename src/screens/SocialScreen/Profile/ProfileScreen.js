@@ -519,7 +519,6 @@ function ProfileScreen() {
           {activeTab === 'grid' ? <PostsTab navigation={navigation} /> : <ReelsTab />}
         </View>
 
-      
       </ScrollView>
       )}
     </CommonBackground>

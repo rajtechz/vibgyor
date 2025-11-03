@@ -15,7 +15,10 @@ const getBaseURL = () => {
     // Requires: Backend must listen on 0.0.0.0:3000 (not just 127.0.0.1)
     // Device and computer must be on same WiFi network
     
-    // Current network IP: 192.168.29.173
+    // Current network IP (from ipconfig - Wi-Fi adapter):
+    // IPv4 Address: 192.168.29.173
+    // Subnet Mask: 255.255.255.0
+    // Default Gateway: 192.168.29.1
     return 'http://192.168.29.173:3000';
     
     // Alternative options (comment out if needed):
@@ -31,7 +34,8 @@ const getBaseURL = () => {
 export const API_CONFIG = {
   // Dynamic BASE_URL based on platform
   BASE_URL: getBaseURL(),
-  // Keep local IP for reference
+  // Keep local IP for reference (Updated from latest ipconfig)
+  // Wi-Fi IPv4: 192.168.29.173, Subnet: 255.255.255.0, Gateway: 192.168.29.1
   LOCAL_BASE_URL: 'http://192.168.29.173:3000',
   // Emulator URL for Android
   ANDROID_EMULATOR_URL: 'http://10.0.2.2:3000',

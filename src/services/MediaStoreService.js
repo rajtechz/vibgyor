@@ -24,17 +24,27 @@ class MediaStoreService {
 
     try {
       if (Platform.OS === 'android') {
-        // Add timeout to prevent hanging
-        const images = await Promise.race([
-          this.fetchAndroidImages({ offset, limit, filterType }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Media scan timeout')), 10000)
-          )
-        ]);
-        
-        if (images.length > 0) {
-          console.log('✅ Found real Android images:', images.length);
-          return images;
+        // Add timeout to prevent hanging - increased timeout and make it more lenient
+        // Return partial results if timeout occurs instead of throwing error
+        try {
+          const images = await Promise.race([
+            this.fetchAndroidImages({ offset, limit, filterType }),
+            new Promise((resolve) => 
+              setTimeout(() => {
+                console.warn('⚠️ Media scan timeout - returning partial results');
+                resolve([]); // Return empty array instead of rejecting
+              }, 60000) // Increased to 60 seconds for slower devices
+            )
+          ]);
+          
+          if (images.length > 0) {
+            console.log('✅ Found real Android images:', images.length);
+            return images;
+          }
+        } catch (scanError) {
+          // If scanning fails, log but don't crash - return empty array
+          console.warn('⚠️ Media scan error (non-fatal):', scanError.message);
+          return [];
         }
       } else {
         const images = await this.fetchIOSImages({ offset, limit, filterType });
@@ -44,11 +54,12 @@ class MediaStoreService {
         }
       }
       
-      // If no real images found, return empty array
-      console.log('❌ No real images found');
+      // If no real images found, return empty array (don't crash)
+      console.log('⚠️ No real images found from MediaStoreService (will use CameraRoll)');
       return [];
     } catch (error) {
-      console.error('❌ Error fetching gallery images:', error);
+      // Catch-all error handler - return empty array instead of crashing
+      console.warn('⚠️ Error fetching gallery images (non-fatal):', error.message);
       return [];
     }
   }
@@ -72,6 +83,7 @@ class MediaStoreService {
       // Prioritize most common directories first for faster scanning
       // Most users have photos in DCIM/Camera, so scan that first
       // Also prioritize video-specific folders
+      // Limit to most important directories to avoid timeout
       const directories = [
         RNFS.DCIMDirectoryPath + '/Camera', // Most common - scan first (photos + videos)
         RNFS.DCIMDirectoryPath, // Camera folder parent (may contain videos)
@@ -81,15 +93,11 @@ class MediaStoreService {
         RNFS.PicturesDirectoryPath, // Pictures folder (may contain videos too)
         externalPath ? externalPath + '/Pictures' : undefined,
         externalPath ? externalPath + '/Videos' : undefined, // Alternative videos folder
-        externalPath ? externalPath + '/Video' : undefined, // Another videos folder variant
         externalPath ? externalPath + '/Download' : undefined,
         externalPath ? externalPath + '/Screenshots' : undefined,
-        // Social media folders - scan only if needed (slower)
-        externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Video' : undefined, // WhatsApp videos
-        externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Images' : undefined,
-        externalPath ? externalPath + '/Telegram' : undefined,
-        externalPath ? externalPath + '/Instagram' : undefined,
-        externalPath ? externalPath + '/Snapchat' : undefined,
+        // Skip social media folders by default to avoid timeout (can be enabled if needed)
+        // externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Video' : undefined,
+        // externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Images' : undefined,
       ].filter(Boolean);
 
       const allImages = [];
@@ -197,16 +205,26 @@ class MediaStoreService {
   // Recursively scan directory for images
   async scanDirectoryRecursively(dirPath, allImages, depth = 0, scanState = { hasLimit: false, limit: Infinity, stop: false }, filterType = null) {
     try {
-      // Limit recursion depth to avoid infinite loops
-      if (depth > 3) {
-        console.log(' Max depth reached for:', dirPath);
+      // Limit recursion depth to avoid infinite loops and speed up scanning
+      if (depth > 2) { // Reduced from 3 to 2 for faster scanning
+        console.log('⏸️ Max depth reached for:', dirPath);
         return;
       }
 
+      // Check if we should stop early
       if (scanState.stop && scanState.hasLimit && allImages.length >= scanState.limit) return;
+      
+      // Early exit if we have enough items already
+      if (scanState.hasLimit && allImages.length >= scanState.limit) {
+        scanState.stop = true;
+        return;
+      }
 
       const files = await RNFS.readDir(dirPath);
-      console.log(`📁 Found ${files.length} items in ${dirPath}`);
+      // Only log if directory has significant files (reduce console spam)
+      if (files.length > 10) {
+        console.log(`📁 Found ${files.length} items in ${dirPath}`);
+      }
       
       for (const file of files) {
         // Only stop if we have a limit and reached it
@@ -245,12 +263,31 @@ class MediaStoreService {
           if (mediaType) {
             try {
               const stat = await RNFS.stat(file.path);
+              
+              // Ensure created timestamp is in milliseconds
+              // stat.ctime and stat.mtime can be in seconds or milliseconds
+              let createdTimestamp = stat.mtime || stat.ctime || Date.now();
+              
+              // Convert to milliseconds if it's in seconds (Unix timestamp < year 2001)
+              if (createdTimestamp < 10000000000) {
+                createdTimestamp = createdTimestamp * 1000;
+              }
+              
+              // Use mtime (modified time) if it's newer than ctime
+              let mtime = stat.mtime || 0;
+              if (mtime < 10000000000) {
+                mtime = mtime * 1000;
+              }
+              
+              // Use the latest timestamp
+              const latestTimestamp = Math.max(createdTimestamp, mtime, Date.now() - 86400000); // Don't use future dates
+              
               const mediaItem = {
-                id: `real_${file.name}_${stat.ctime}_${Math.random()}`,
+                id: `real_${file.name}_${latestTimestamp}_${Math.random()}`,
                 uri: 'file://' + file.path,
                 fileName: file.name,
                 size: stat.size,
-                created: stat.ctime,
+                created: latestTimestamp, // Always in milliseconds
                 type: mediaType,
                 isVideo: mediaType === 'video',
               };
@@ -258,22 +295,23 @@ class MediaStoreService {
               // Always add to allImages - we'll apply limit later
               allImages.push(mediaItem);
               
-              // Log videos when found for debugging
-              if (mediaType === 'video') {
+              // Log videos when found for debugging (but less frequently)
+              if (mediaType === 'video' && allImages.filter(i => i.type === 'video').length <= 10) {
                 console.log(`🎥 Found video: ${file.name}`);
               }
               
-              // Log periodically to show progress
-              if (allImages.length % 50 === 0) {
+              // Log periodically to show progress (less frequent to reduce console spam)
+              if (allImages.length % 100 === 0) {
                 const imageCount = allImages.filter(i => i.type === 'image').length;
                 const videoCount = allImages.filter(i => i.type === 'video').length;
                 console.log(`📸 Scanned ${allImages.length} media files (${imageCount} images, ${videoCount} videos)...`);
               }
               
               // Optional: Stop early if limit is set (but scan more for better sorting)
-              if (scanState.hasLimit && allImages.length >= scanState.limit * 1.2) {
-                scanState.stop = true; // Stop scanning once we have enough for good sorting
-                console.log(`⏸️ Reached scan limit, stopping early for performance`);
+              // For faster scanning, stop once we have enough items
+              if (scanState.hasLimit && allImages.length >= scanState.limit) {
+                scanState.stop = true; // Stop scanning once we have enough
+                console.log(`⏸️ Reached limit of ${scanState.limit}, stopping scan`);
                 break;
               }
             } catch (statError) {

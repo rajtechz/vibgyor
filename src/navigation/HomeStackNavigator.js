@@ -8,6 +8,8 @@ import SelfStoryScreen from '../screens/SocialScreen/Home/SelfStoryScreen';
 import OtherUserProfileScreen from '../screens/SocialScreen/Profile/OtherUserProfileScreen';
 import OtherUserPostViewScreen from '../screens/SocialScreen/Profile/OtherUserPostViewScreen';
 import PostCreationScreen from '../screens/SocialScreen/Post/PostCreationScreen';
+import LikesScreen from '../screens/SocialScreen/Profile/LikesScreen';
+import CommentsScreen from '../screens/SocialScreen/Profile/CommentsScreen';
 
 const Stack = createStackNavigator();
 
@@ -26,6 +28,8 @@ function HomeStackNavigator() {
       <Stack.Screen name="OtherUserProfile" component={OtherUserProfileScreen} />
         <Stack.Screen name="OtherUserPostView" component={OtherUserPostViewScreen} />
         <Stack.Screen name="PostCreation" component={PostCreationScreen} />
+        <Stack.Screen name="Likes" component={LikesScreen} />
+        <Stack.Screen name="Comments" component={CommentsScreen} />
       </Stack.Navigator>
     );
   }

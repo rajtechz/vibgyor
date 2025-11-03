@@ -4,11 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-
   ScrollView,
-
+  TextInput,
   Dimensions,
   StatusBar,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -114,15 +115,31 @@ const EditProfileScreen = () => {
     bio: 'Love music, cooking, swimming, going out, travellig etc. Wanna be friends??',
     interests: ['Music', 'Cooking', 'Swimming', 'Travelling'],
   });
-
+  const [editingField, setEditingField] = useState(null); // Track which field is being edited
 
   const handleImageSelected = (image) => {
     setProfileImage(image);
   };
 
+  const handleEditPress = (field) => {
+    setEditingField(field);
+  };
+
+  const handleFieldChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleFieldBlur = () => {
+    setEditingField(null);
+  };
+
   const handleSave = () => {
     // Handle save logic here
     console.log('Saving profile:', formData);
+    setEditingField(null);
     navigation.goBack();
   };
 
@@ -142,7 +159,12 @@ const EditProfileScreen = () => {
       
       </View>
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Profile Image Section */}
         <View style={styles.profileImageSection}>
           <ProfileImageUpload
@@ -156,20 +178,64 @@ const EditProfileScreen = () => {
         <View style={styles.userInfoSection}>
           {/* Name */}
           <View style={styles.infoRow}>
-            <Text style={styles.infoValue}>{formData.name}</Text>
-            <EditIcon />
+            {editingField === 'name' ? (
+              <TextInput
+                style={styles.input}
+                value={formData.name}
+                onChangeText={(text) => handleFieldChange('name', text)}
+                onBlur={handleFieldBlur}
+                autoFocus
+                placeholder="Name"
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                autoCapitalize="words"
+              />
+            ) : (
+              <Text style={styles.infoValue}>{formData.name}</Text>
+            )}
+            <TouchableOpacity onPress={() => handleEditPress('name')} style={styles.editIconContainer}>
+              <EditIcon />
+            </TouchableOpacity>
           </View>
 
           {/* Username */}
           <View style={styles.infoRow}>
-            <Text style={styles.infoValue}>{formData.username}</Text>
-            <EditIcon />
+            {editingField === 'username' ? (
+              <TextInput
+                style={styles.input}
+                value={formData.username}
+                onChangeText={(text) => handleFieldChange('username', text)}
+                onBlur={handleFieldBlur}
+                autoFocus
+                placeholder="Username"
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                autoCapitalize="none"
+              />
+            ) : (
+              <Text style={styles.infoValue}>{formData.username}</Text>
+            )}
+            <TouchableOpacity onPress={() => handleEditPress('username')} style={styles.editIconContainer}>
+              <EditIcon />
+            </TouchableOpacity>
           </View>
 
           {/* Gender */}
           <View style={styles.infoRow}>
-            <Text style={styles.genderText}>{formData.gender}</Text>
-            <EditIcon />
+            {editingField === 'gender' ? (
+              <TextInput
+                style={styles.input}
+                value={formData.gender}
+                onChangeText={(text) => handleFieldChange('gender', text)}
+                onBlur={handleFieldBlur}
+                autoFocus
+                placeholder="Gender"
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+              />
+            ) : (
+              <Text style={styles.genderText}>{formData.gender}</Text>
+            )}
+            <TouchableOpacity onPress={() => handleEditPress('gender')} style={styles.editIconContainer}>
+              <EditIcon />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -177,9 +243,26 @@ const EditProfileScreen = () => {
         <View style={styles.bioSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Short Bio</Text>
-            <EditIcon />
+            <TouchableOpacity onPress={() => handleEditPress('bio')} style={styles.editIconContainer}>
+              <EditIcon />
+            </TouchableOpacity>
           </View>
-          <Text style={styles.bioText}>{formData.bio}</Text>
+          {editingField === 'bio' ? (
+            <TextInput
+              style={styles.bioInput}
+              value={formData.bio}
+              onChangeText={(text) => handleFieldChange('bio', text)}
+              onBlur={handleFieldBlur}
+              autoFocus
+              placeholder="Bio"
+              placeholderTextColor="rgba(255, 255, 255, 0.6)"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          ) : (
+            <Text style={styles.bioText}>{formData.bio}</Text>
+          )}
         </View>
 
         {/* Interests Section */}
@@ -210,7 +293,8 @@ const EditProfileScreen = () => {
           onPress={handleSave}
           style={styles.saveButtonContainer}
         />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </CommonBackground>
   );
 };
@@ -238,6 +322,9 @@ const styles = StyleSheet.create({
     width: 40,
   },
   container: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
     paddingHorizontal: 20,
   },
@@ -267,6 +354,34 @@ const styles = StyleSheet.create({
   },
   editIconContainer: {
     padding: 4,
+  },
+  input: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontFamily: fonts.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginRight: 8,
+  },
+  bioInput: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    lineHeight: 22,
+    fontFamily: fonts.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
   bioSection: {
     marginBottom: 30,

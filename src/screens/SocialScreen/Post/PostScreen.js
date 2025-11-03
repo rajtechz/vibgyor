@@ -1,22 +1,102 @@
-// src/screens/Post/PostScreen.js
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, StatusBar, Image, Dimensions, Alert, Platform, PermissionsAndroid, ActivityIndicator, Linking, Pressable } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  StatusBar,
+  Image,
+  Dimensions,
+  Pressable,
+  ActivityIndicator,
+  Platform,
+  PermissionsAndroid,
+  Alert,
+  Linking,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import LinearGradient from 'react-native-linear-gradient';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSelector, useDispatch } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import Video from 'react-native-video';
 import CommonBackground from '../../../components/common/CommonBackground';
-import ModeSwitchHeader from '../../../components/common/ModeSwitchHeader';
 import MediaStoreService from '../../../services/MediaStoreService';
-import { colors, gradients } from '../../../styles/colors';
+import {
+  setGalleryMedia,
+  setAllMedia,
+  setSelectedFilter,
+  setSelectedImageIds,
+  addSelectedImageId,
+  removeSelectedImageId,
+  clearSelectedImageIds,
+  setSelectedPreviewItem,
+  clearSelectedPreviewItem,
+  setLoading,
+  setPermission,
+  setError,
+} from '../../../redux/slices/postSlice';
+
+// Safely import CameraRoll
+let CameraRoll = null;
+try {
+  const cameraRollModule = require('@react-native-camera-roll/camera-roll');
+  CameraRoll = cameraRollModule.CameraRoll || cameraRollModule.default;
+} catch (error) {
+  console.warn('⚠️ CameraRoll module not available:', error);
+}
 
 const { width } = Dimensions.get('window');
-const imageWidth = width / 3; // 3 columns with no spacing
+const imageWidth = width / 3;
 
-// Camera Icon Component
-const CameraIcon = ({ width = 24, height = 24, color = '#B0B0B0' }) => (
+// Close Icon (X)
+const CloseIcon = ({ width = 24, height = 24, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M18 6L6 18M6 6L18 18"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Chevron Down Icon
+const ChevronDownIcon = ({ width = 16, height = 16, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M6 9L12 15L18 9"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Select Multiple Icon (Two overlapping squares)
+const SelectMultipleIcon = ({ width = 20, height = 20, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M8 3H5C3.89543 3 3 3.89543 3 5V8M21 8V5C21 3.89543 20.1046 3 19 3H16M16 21H19C20.1046 21 21 20.1046 21 19V16M3 16V19C3 20.1046 3.89543 21 5 21H8"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M8 8H16V16H8V8Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Camera Icon
+const CameraIcon = ({ width = 32, height = 32, color = 'white' }) => (
   <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
     <Path
       d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 4H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z"
@@ -35,8 +115,39 @@ const CameraIcon = ({ width = 24, height = 24, color = '#B0B0B0' }) => (
   </Svg>
 );
 
-// Image Icon Component
-const ImageIcon = ({ width = 24, height = 24, color = '#B0B0B0' }) => (
+// Recents Icon (play button over stack)
+const RecentsIcon = ({ width = 20, height = 20, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 19.5C4 18.3954 4.89543 17.5 6 17.5H18C19.1046 17.5 20 18.3954 20 19.5C20 20.6046 19.1046 21.5 18 21.5H6C4.89543 21.5 4 20.6046 4 19.5Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M4 15.5C4 14.3954 4.89543 13.5 6 13.5H18C19.1046 13.5 20 14.3954 20 15.5C20 16.6046 19.1046 17.5 18 17.5H6C4.89543 17.5 4 16.6046 4 15.5Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M4 11.5C4 10.3954 4.89543 9.5 6 9.5H12C13.1046 9.5 14 10.3954 14 11.5C14 12.6046 13.1046 13.5 12 13.5H6C4.89543 13.5 4 12.6046 4 11.5Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M16 9L20 12L16 15V9Z"
+      fill={color}
+    />
+  </Svg>
+);
+
+// Photos Icon (mountain/landscape)
+const PhotosIcon = ({ width = 20, height = 20, color = 'white' }) => (
   <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
     <Path
       d="M21 19V5C21 4.46957 20.7893 3.96086 20.4142 3.58579C20.0391 3.21071 19.5304 3 19 3H5C4.46957 3 3.96086 3.21071 3.58579 3.58579C3.21071 3.96086 3 4.46957 3 5V19C3 19.5304 3.21071 20.0391 3.58579 20.4142C3.96086 20.7893 4.46957 21 5 21H19C19.5304 21 20.0391 20.7893 20.4142 20.4142C20.7893 20.0391 21 19.5304 21 19Z"
@@ -59,24 +170,8 @@ const ImageIcon = ({ width = 24, height = 24, color = '#B0B0B0' }) => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-  </Svg>
-);
-
-// Hamburger Menu Icon
-const HamburgerIcon = ({ width = 24, height = 24 }) => (
-  <Svg width={width} height={height} viewBox="0 0 32 32" fill="none">
     <Path
-      d="M28 6.66634C28 5.92996 27.403 5.33301 26.6667 5.33301H5.33333C4.59695 5.33301 4 5.92996 4 6.66634C4 7.40272 4.59695 7.99967 5.33333 7.99967H26.6667C27.403 7.99967 28 7.40272 28 6.66634ZM28 15.9997C28 15.2633 27.403 14.6663 26.6667 14.6663H13.3333C12.597 14.6663 12 15.2633 12 15.9997C12 16.7361 12.597 17.333 13.3333 17.333H26.6667C27.403 17.333 28 16.7361 28 15.9997ZM28 25.333C28 24.5966 27.403 23.9997 26.6667 23.9997H5.33333C4.59695 23.9997 4 24.5966 4 25.333C4 26.0694 4.59695 26.6663 5.33333 26.6663H26.6667C27.403 26.6663 28 26.0694 28 25.333Z"
-      fill="white"
-    />
-  </Svg>
-);
-
-// Chevron Down Icon
-const ChevronDownIcon = ({ width = 16, height = 16, color = 'white' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M6 9L12 15L18 9"
+      d="M17 7L14 10L10 6L5 11"
       stroke={color}
       strokeWidth="2"
       strokeLinecap="round"
@@ -85,786 +180,1126 @@ const ChevronDownIcon = ({ width = 16, height = 16, color = 'white' }) => (
   </Svg>
 );
 
-// Post Card Component
-const PostCard = ({ author, time, content, likes, comments }) => (
-  <View style={styles.postCard}>
-    <View style={styles.postHeader}>
-      <View style={styles.authorInfo}>
-        <View style={styles.authorAvatar}>
-          <Text style={styles.authorInitial}>{author.charAt(0)}</Text>
-        </View>
-        <View>
-          <Text style={styles.authorName}>{author} </Text>
-          <Text style={styles.postTime}>{time}</Text>
-        </View>
-      </View>
-    </View>
-    <Text style={styles.postContent}>{content}</Text>
-    <View style={styles.postActions}>
-      <TouchableOpacity style={styles.actionButton}>
-        <Text style={styles.actionText}>❤️ {likes}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.actionButton}>
-        <Text style={styles.actionText}>💬 {comments}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.actionButton}>
-        <Text style={styles.actionText}>📤 Share</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
+// Videos Icon (play button in circle)
+const VideosIcon = ({ width = 20, height = 20, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10 8L16 12L10 16V8Z"
+      fill={color}
+    />
+  </Svg>
+);
+
+// Play Icon (for video overlay)
+const PlayIcon = ({ width = 32, height = 32, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M8 5V19L19 12L8 5Z"
+      fill={color}
+    />
+  </Svg>
+);
+
+// Format duration helper
+const formatDuration = (seconds) => {
+  if (!seconds || seconds === 0) return '0:00';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+};
+
+
+// Check Icon (for selected items)
+const CheckIcon = ({ width = 16, height = 16, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M20 6L9 17L4 12"
+      stroke={color}
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
 );
 
 function PostScreen() {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('Vibes');
-  const [galleryImages, setGalleryImages] = useState([]);
-  const [allMedia, setAllMedia] = useState([]); // Store all media (images + videos)
-  const [mediaFilter, setMediaFilter] = useState('recent'); // 'recent', 'photo', 'video'
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasAutoOpened, setHasAutoOpened] = useState(false);
-  const [hasPermission, setHasPermission] = useState(null); // null = not checked, true = granted, false = denied
-  const isLoadingRef = useRef(false);
-  const hasCheckedPermissionRef = useRef(false);
-  const hasPermissionRef = useRef(null);
-  const dropdownRef = useRef(null);
   const insets = useSafeAreaInsets();
+  const dispatch = useDispatch();
+  
+  // Redux state
+  const { 
+    galleryMedia, 
+    allMedia, 
+    selectedFilter, 
+    selectedImageIds, 
+    selectedPreviewItem, 
+    isLoading, 
+    hasPermission 
+  } = useSelector(state => state.post);
+  
+  // Local state
+  const [selectedTab, setSelectedTab] = useState('POST'); // POST, STORY, REEL
+  const [showRecentsDropdown, setShowRecentsDropdown] = useState(false);
+  const [isMultiSelect, setIsMultiSelect] = useState(false);
+  const [showPreview, setShowPreview] = useState(true); // Show/hide preview on scroll
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const scrollViewRef = useRef(null);
+  const isFirstMount = useRef(true);
 
-  const filterTabs = ['Thought', 'Images', 'Vibes', 'Videos', 'Sticker'];
-
-  // Check storage permission status (including videos)
-  const checkStoragePermission = React.useCallback(async () => {
+  // Check storage permission
+  const checkStoragePermission = useCallback(async () => {
     if (Platform.OS !== 'android') {
       return true;
     }
 
     try {
-      // For Android 13+ (API 33+), check both READ_MEDIA_IMAGES and READ_MEDIA_VIDEO
       if (Platform.Version >= 33) {
-        const mediaImagesCheck = await PermissionsAndroid.check(
-          PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-        );
-        const mediaVideosCheck = await PermissionsAndroid.check(
-          PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
-        );
-        
-        console.log('📱 Permission check - Images:', mediaImagesCheck, 'Videos:', mediaVideosCheck);
-        
-        // At least images permission is required, videos is optional
-        if (mediaImagesCheck) {
-          console.log('✅ Images permission granted - allowing access');
-          return true;
+        const [hasReadMediaImagesPermission, hasReadMediaVideoPermission] = await Promise.all([
+          PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES),
+          PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO),
+        ]);
+        return hasReadMediaImagesPermission && hasReadMediaVideoPermission;
         } else {
-          console.log('❌ Images permission not granted');
-          return false;
-        }
-      }
-      
-      // For older Android versions, check READ_EXTERNAL_STORAGE
-      const checkResult = await PermissionsAndroid.check(
+        return await PermissionsAndroid.check(
         PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
       );
-      console.log('📱 Permission check (old Android):', checkResult);
-      return checkResult;
+      }
     } catch (err) {
       console.warn('Permission check error:', err);
       return false;
     }
   }, []);
 
-  // Request storage permission for Android (including videos)
-  const requestStoragePermission = React.useCallback(async () => {
+  // Request storage permission
+  const requestStoragePermission = useCallback(async () => {
     if (Platform.OS !== 'android') {
-      setHasPermission(true);
+      dispatch(setPermission(true));
       return true;
     }
 
     try {
-      let imagesGranted = false;
-      let videosGranted = false;
-      
-      // For Android 13+ (API 33+), request both READ_MEDIA_IMAGES and READ_MEDIA_VIDEO
       if (Platform.Version >= 33) {
-        // Request images permission
-        imagesGranted = await PermissionsAndroid.request(
+        const statuses = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-          {
-            title: 'Photo Access Permission',
-            message: 'This app needs access to your photos and videos to show them in the gallery.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'Allow',
-          }
-        );
-        
-        // Request videos permission
-        videosGranted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
-          {
-            title: 'Video Access Permission',
-            message: 'This app needs access to your videos to show them in the gallery.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'Allow',
-          }
-        );
-        
-        // At least images permission is required, videos is optional
-        const isGranted = imagesGranted === PermissionsAndroid.RESULTS.GRANTED;
-        console.log('📱 Permission request result - Images:', imagesGranted === PermissionsAndroid.RESULTS.GRANTED, 'Videos:', videosGranted === PermissionsAndroid.RESULTS.GRANTED);
-        
-        if (!isGranted && videosGranted === PermissionsAndroid.RESULTS.GRANTED) {
-          console.log('⚠️ Videos permission granted but images not granted - requesting images again');
-        }
-        
-        setHasPermission(isGranted);
-        hasPermissionRef.current = isGranted;
+        ]);
+        const hasImagesPermission = statuses[PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES] === PermissionsAndroid.RESULTS.GRANTED;
+        const hasVideosPermission = statuses[PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO] === PermissionsAndroid.RESULTS.GRANTED;
+        const isGranted = hasImagesPermission && hasVideosPermission;
+        dispatch(setPermission(isGranted));
         return isGranted;
       } else {
-        // For older Android versions, use READ_EXTERNAL_STORAGE
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
           {
             title: 'Storage Permission',
-            message: 'This app needs access to your photos and videos to show them.',
+            message: 'This app needs access to your photos and videos.',
             buttonNeutral: 'Ask Me Later',
             buttonNegative: 'Cancel',
             buttonPositive: 'Allow',
           }
         );
-        
         const isGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
-        setHasPermission(isGranted);
-        hasPermissionRef.current = isGranted;
+        dispatch(setPermission(isGranted));
         return isGranted;
       }
     } catch (err) {
       console.warn('Permission request error:', err);
-      setHasPermission(false);
+      dispatch(setPermission(false));
       return false;
     }
-  }, []);
+  }, [dispatch]);
 
-  // Open device settings
-  const openSettings = () => {
-    Linking.openSettings().catch((err) => {
-      console.error('Error opening settings:', err);
-      Alert.alert('Error', 'Failed to open settings. Please go to Settings > Apps > Vibgyor > Permissions manually.');
-    });
-  };
-
-  // Memoized filtered media - only recalculates when allMedia or mediaFilter changes
-  const filteredMedia = useMemo(() => {
-    if (mediaFilter === 'photo') {
-      return allMedia.filter(item => item.type === 'image');
-    } else if (mediaFilter === 'video') {
-      return allMedia.filter(item => item.type === 'video');
-    }
-    return allMedia; // 'recent' - show all
-  }, [allMedia, mediaFilter]);
-
-  // Memoized gallery items - only recalculates when filteredMedia changes
-  const galleryItems = useMemo(() => {
-    return filteredMedia.map((item, index) => ({
-      id: item.id || `gallery_${index}`,
-      uri: item.uri,
-      type: item.type,
-      isAddButton: false,
-      isVideo: item.type === 'video',
-    }));
-  }, [filteredMedia]);
-
-  // Handle filter selection - optimized with immediate UI update
-  const handleFilterSelect = useCallback((filter) => {
-    // Immediately close dropdown for better UX
-    setShowFilterDropdown(false);
-    
-    // Update filter - this will trigger useMemo and useEffect to update gallery
-    setMediaFilter(filter);
-    
-    console.log(`✅ PostScreen: Filter changed to ${filter}`);
-  }, []);
-  
-  // Sync galleryImages with filtered media whenever filter or allMedia changes
-  useEffect(() => {
-    if (allMedia.length === 0) return; // Don't update if no media loaded yet
-    
-    const cameraItem = { id: 'camera', type: 'add', isAddButton: true };
-    
-    // Use the memoized filteredMedia or calculate it directly
-    let filtered = allMedia;
-    if (mediaFilter === 'photo') {
-      filtered = allMedia.filter(item => item.type === 'image');
-    } else if (mediaFilter === 'video') {
-      filtered = allMedia.filter(item => item.type === 'video');
-    }
-    
-    const items = filtered.map((item, index) => ({
-      id: item.id || `gallery_${index}`,
-      uri: item.uri,
-      type: item.type,
-      isAddButton: false,
-      isVideo: item.type === 'video',
-    }));
-    
-    const totalImages = allMedia.filter(i => i.type === 'image').length;
-    const totalVideos = allMedia.filter(i => i.type === 'video').length;
-    
-    console.log(`📊 PostScreen: Filter "${mediaFilter}" - Total media: ${allMedia.length}, Filtered: ${filtered.length}`);
-    console.log(`📊 Media breakdown - Images: ${totalImages}, Videos: ${totalVideos}`);
-    
-    // Debug: If filtering videos and none found, log details
-    if (mediaFilter === 'video' && filtered.length === 0 && totalVideos > 0) {
-      console.warn(`⚠️ Video filter active but no videos in filtered result! Total videos in allMedia: ${totalVideos}`);
-      console.warn(`   First 3 videos in allMedia:`, allMedia.filter(i => i.type === 'video').slice(0, 3).map(v => ({ type: v.type, uri: v.uri, fileName: v.fileName })));
-    }
-    
-    setGalleryImages([cameraItem, ...items]);
-    console.log(`✅ PostScreen: Gallery updated for filter "${mediaFilter}" - showing ${items.length} items (${items.filter(i => i.isVideo).length} videos)`);
-  }, [allMedia, mediaFilter]);
-
-  // Toggle dropdown - memoized for performance
-  const toggleDropdown = useCallback(() => {
-    setShowFilterDropdown(prev => !prev);
-  }, []);
-
-  // Load gallery images from device
-  const loadGalleryImages = React.useCallback(async (skipPermissionCheck = false) => {
-    // Prevent multiple simultaneous calls
-    if (isLoadingRef.current) {
-      console.log('⏸️ PostScreen: Already loading, skipping...');
-      return;
-    }
-
-    isLoadingRef.current = true;
-    setIsLoading(true);
+  // Load gallery images from device - Combining MediaStoreService + CameraRoll
+  const loadGalleryImages = useCallback(async () => {
+    dispatch(setLoading(true));
     try {
-      console.log('📸 PostScreen: Loading gallery images...');
-      
-      // Check permissions first (don't request if already checked)
-      let permissionGranted = false;
-      if (!skipPermissionCheck) {
-        // Check if permission is already granted
-        permissionGranted = await checkStoragePermission();
-        
-        if (!permissionGranted && hasPermission !== false) {
-          // Only request if we haven't been denied yet
-          permissionGranted = await requestStoragePermission();
-        } else if (hasPermission === false) {
-          // Already denied, don't ask again
-          permissionGranted = false;
-        }
-      } else {
-        permissionGranted = await checkStoragePermission();
-      }
+      // Check permissions first
+      let permissionGranted = await checkStoragePermission();
       
       if (!permissionGranted) {
-        console.log('❌ PostScreen: Storage permission not granted');
-        // Set at least camera button so screen is not empty
-        setGalleryImages([{ id: 'camera', type: 'add', isAddButton: true }]);
-        setIsLoading(false);
-        isLoadingRef.current = false;
+        permissionGranted = await requestStoragePermission();
+      }
+
+      if (!permissionGranted) {
+        console.log('❌ Storage permission not granted');
+        dispatch(setPermission(false));
+        dispatch(setGalleryMedia([{ id: 'camera', isAddButton: true }]));
+        dispatch(setLoading(false));
         return;
       }
 
-      // Fetch gallery images with initial limit for faster loading (load more on demand)
-      // Load first 500 items for initial display - this is much faster
-      const allMediaItems = await MediaStoreService.fetchGalleryImages({ limit: 500 });
-      console.log(`✅ PostScreen: Loaded ${allMediaItems.length} media items (showing first 500 for performance)`);
-      
-      // Store all media for filtering - this will trigger useEffect to update galleryImages
-      setAllMedia(allMediaItems);
-      setHasPermission(true);
-    } catch (error) {
-      console.error('❌ PostScreen: Error loading gallery images:', error);
-      // On error, show only camera button
-      setGalleryImages([{ id: 'camera', type: 'add', isAddButton: true }]);
-    } finally {
-      setIsLoading(false);
-      isLoadingRef.current = false;
-    }
-  }, [requestStoragePermission, checkStoragePermission, hasPermission, mediaFilter]);
+      dispatch(setPermission(true));
 
-  // Handle opening gallery
-  const handleOpenGallery = async () => {
-    const hasPermission = await requestStoragePermission();
-    if (!hasPermission) {
-      Alert.alert(
-        'Permission Denied',
-        'Storage permission is required to access photos.',
-        [{ text: 'OK' }]
-      );
+      // Use BOTH MediaStoreService and CameraRoll for better video detection
+      // Use Promise.allSettled to continue even if MediaStoreService times out
+      const results = await Promise.allSettled([
+        // Fetch from MediaStoreService (better for videos on Android)
+        MediaStoreService.fetchGalleryImages({ limit: 1000, filterType: null }),
+        // Fetch from CameraRoll (better metadata)
+        (CameraRoll && typeof CameraRoll.getPhotos === 'function') 
+          ? CameraRoll.getPhotos({
+              first: 1000, // Increased to get more items for better sorting
+              assetType: 'All',
+              groupTypes: 'All',
+            }).then(result => result.edges || []).catch(err => {
+              console.warn('⚠️ CameraRoll error:', err);
+              return [];
+            })
+          : Promise.resolve([])
+      ]);
+
+      // Extract results from Promise.allSettled
+      const mediaStoreItems = results[0].status === 'fulfilled' ? results[0].value : [];
+      const cameraRollItems = results[1].status === 'fulfilled' ? results[1].value : [];
+      
+      // Log status
+      if (results[0].status === 'rejected') {
+        console.warn('⚠️ MediaStoreService failed (non-fatal):', results[0].reason?.message || 'Unknown error');
+      }
+      if (results[1].status === 'rejected') {
+        console.warn('⚠️ CameraRoll failed (non-fatal):', results[1].reason?.message || 'Unknown error');
+      }
+
+      console.log(`📸 MediaStoreService: ${mediaStoreItems.length} items`);
+      console.log(`📸 CameraRoll: ${cameraRollItems.length} items`);
+
+      // Combine both sources - prioritize MediaStoreService for videos
+      const combinedMediaMap = new Map();
+
+      // First, add MediaStoreService items (better video URIs)
+      mediaStoreItems.forEach((item, index) => {
+        // Ensure created is always a number (timestamp), never an object
+        let createdTimestamp = Date.now();
+        if (item.created) {
+          if (typeof item.created === 'number') {
+            createdTimestamp = item.created;
+          } else if (item.created instanceof Date) {
+            createdTimestamp = item.created.getTime();
+          } else if (typeof item.created === 'object' && Object.keys(item.created).length > 0) {
+            // If it's an object with properties, try to extract timestamp
+            createdTimestamp = item.created.getTime?.() || Date.now();
+          }
+        }
+        
+        const id = item.id || `mediastore_${index}_${createdTimestamp}`;
+        const isVideo = item.isVideo || item.type === 'video';
+        
+        // Ensure URI is properly formatted for videos
+        let videoUri = item.uri;
+        let thumbnailUri = item.uri;
+        
+        if (isVideo && videoUri) {
+          // Format video URI for Android
+          if (!videoUri.startsWith('file://') && !videoUri.startsWith('content://') && !videoUri.startsWith('http') && !videoUri.startsWith('ph://')) {
+            if (videoUri.startsWith('/')) {
+              videoUri = `file://${videoUri}`;
+            } else {
+              videoUri = `content://${videoUri}`;
+            }
+          }
+          // For MediaStoreService, thumbnail might be the same or separate
+          thumbnailUri = item.thumbnailUri || item.uri;
+          if (thumbnailUri && !thumbnailUri.startsWith('file://') && !thumbnailUri.startsWith('content://') && !thumbnailUri.startsWith('http')) {
+            if (thumbnailUri.startsWith('/')) {
+              thumbnailUri = `file://${thumbnailUri}`;
+            }
+          }
+        } else if (videoUri && !videoUri.startsWith('file://') && !videoUri.startsWith('content://') && !videoUri.startsWith('http')) {
+          if (videoUri.startsWith('/')) {
+            videoUri = `file://${videoUri}`;
+          }
+        }
+        
+        // Check if item already exists - prefer newer one
+        const existing = combinedMediaMap.get(id);
+        if (existing) {
+          // If existing item is older, update it with newer timestamp
+          if (createdTimestamp > (existing.created || 0)) {
+            existing.created = createdTimestamp;
+            existing.uri = videoUri || item.uri;
+            existing.thumbnailUri = thumbnailUri || item.uri;
+            if (isVideo && (!existing.isVideo)) {
+              existing.isVideo = isVideo;
+              existing.type = 'video';
+            }
+          }
+        } else {
+          combinedMediaMap.set(id, {
+            id,
+            uri: videoUri || item.uri,
+            thumbnailUri: thumbnailUri || item.uri,
+            type: item.type || (isVideo ? 'video' : 'image'),
+            isVideo: isVideo,
+            duration: item.duration || null,
+            isAddButton: false,
+            created: createdTimestamp, // Always a number
+            source: 'mediastore', // Track source
+          });
+        }
+      });
+
+      // Then, merge CameraRoll items (add missing or update metadata)
+      cameraRollItems.forEach((edge, index) => {
+        const node = edge.node;
+        
+        // Enhanced video detection
+        const hasVideoProperty = node.video !== null && node.video !== undefined;
+        const hasPlayableDuration = node.playableDuration !== undefined && node.playableDuration !== null;
+        const typeIsVideo = node.type === 'video';
+        const mediaTypeIsVideo = node.mediaType === 'video';
+        const filenameIsVideo = node.image?.filename && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(node.image.filename);
+        
+        const isVideo = typeIsVideo || mediaTypeIsVideo || hasVideoProperty || hasPlayableDuration || filenameIsVideo;
+        
+        // Get URIs
+        let mediaUri = '';
+        let thumbnailUri = '';
+        if (isVideo) {
+          // For videos, try video.uri first (actual video file), then image.uri (thumbnail), then node.uri
+          mediaUri = node.video?.uri || node.image?.uri || node.uri || '';
+          // Thumbnail is usually in image.uri for videos
+          thumbnailUri = node.image?.uri || mediaUri;
+        } else {
+          mediaUri = node.image?.uri || node.uri || '';
+          thumbnailUri = mediaUri;
+        }
+        
+        // Ensure proper URI format for Android
+        // Android videos work better with content:// or file:// prefix
+        if (mediaUri) {
+          if (!mediaUri.startsWith('file://') && !mediaUri.startsWith('content://') && !mediaUri.startsWith('http') && !mediaUri.startsWith('ph://')) {
+            // Check if it's an absolute path
+            if (mediaUri.startsWith('/')) {
+              mediaUri = `file://${mediaUri}`;
+      } else {
+              // Try content:// for Android MediaStore
+              mediaUri = `content://${mediaUri}`;
+            }
+          }
+        }
+        
+        // Format thumbnail URI similarly
+        if (thumbnailUri && !thumbnailUri.startsWith('file://') && !thumbnailUri.startsWith('content://') && !thumbnailUri.startsWith('http') && !thumbnailUri.startsWith('ph://')) {
+          if (thumbnailUri.startsWith('/')) {
+            thumbnailUri = `file://${thumbnailUri}`;
+          }
+        }
+        
+        // Get duration
+        let duration = null;
+        if (isVideo) {
+          duration = node.video?.duration || node.playableDuration || node.duration || null;
+          if (duration && duration > 10000) {
+            duration = duration / 1000;
+          }
+        }
+        
+        // Ensure created is always a number (timestamp), never an object
+        let createdTimestamp = Date.now();
+        if (node.timestamp) {
+          if (typeof node.timestamp === 'number') {
+            createdTimestamp = node.timestamp;
+          } else if (node.timestamp instanceof Date) {
+            createdTimestamp = node.timestamp.getTime();
+          } else if (typeof node.timestamp === 'object' && node.timestamp !== null) {
+            // If it's an object, try to extract timestamp or use current time
+            createdTimestamp = node.timestamp.getTime?.() || Date.now();
+          }
+        }
+        
+        const id = mediaUri || `cameraroll_${index}_${createdTimestamp}`;
+        
+        // Only add if not already in map, or if it's a video and we have better URI
+        if (!combinedMediaMap.has(id)) {
+          combinedMediaMap.set(id, {
+            id,
+            uri: mediaUri,
+            thumbnailUri: isVideo ? thumbnailUri : mediaUri,
+            type: isVideo ? 'video' : 'image',
+            isVideo: isVideo,
+            duration: duration,
+            isAddButton: false,
+            created: createdTimestamp, // Always a number
+            source: 'cameraroll',
+          });
+    } else {
+          // Update existing item with better metadata if available
+          const existing = combinedMediaMap.get(id);
+          
+          // Always prefer newer timestamp
+          if (createdTimestamp > (existing.created || 0)) {
+            existing.created = createdTimestamp;
+          }
+          
+          if (isVideo && (!existing.uri || existing.uri.length < mediaUri.length)) {
+            existing.uri = mediaUri;
+            existing.thumbnailUri = thumbnailUri || node.image?.uri || mediaUri;
+          }
+          if (duration && !existing.duration) {
+            existing.duration = duration;
+          }
+        }
+      });
+
+      // Convert map to array and sort by creation time (newest first)
+      // Ensure all items have valid timestamps, and sort properly
+      const mediaItems = Array.from(combinedMediaMap.values())
+        .map(item => {
+          // Ensure created is always a valid number
+          if (!item.created || typeof item.created !== 'number' || isNaN(item.created)) {
+            item.created = Date.now();
+          }
+          return item;
+        })
+        .sort((a, b) => {
+          // Sort by created timestamp (newest first)
+          const aTime = a.created || 0;
+          const bTime = b.created || 0;
+          return bTime - aTime;
+        });
+
+      // Log summary with timestamp info
+      const videoCount = mediaItems.filter(m => m.isVideo).length;
+      const imageCount = mediaItems.filter(m => !m.isVideo).length;
+      console.log(`📊 Combined media: ${imageCount} images, ${videoCount} videos`);
+      
+      // Debug: Show first few items with their timestamps
+      if (mediaItems.length > 0) {
+        const sampleItems = mediaItems.slice(0, 5);
+        console.log(`📅 Latest items (first 5):`, sampleItems.map((item, idx) => ({
+          index: idx,
+          type: item.type,
+          isVideo: item.isVideo,
+          created: item.created,
+          createdDate: new Date(item.created).toISOString(),
+          source: item.source
+        })));
+      }
+      
+      // Debug videos
+      const videos = mediaItems.filter(m => m.isVideo);
+      if (videos.length > 0) {
+        console.log(`✅ Found ${videos.length} videos total!`);
+        videos.slice(0, 5).forEach((v, idx) => {
+          console.log(`🎥 Video ${idx + 1}:`, {
+            uri: v.uri?.substring(0, 100),
+            type: v.type,
+            isVideo: v.isVideo,
+            hasUri: !!v.uri,
+            source: v.source,
+            duration: v.duration
+          });
+        });
+      } else {
+        console.log('⚠️ NO VIDEOS FOUND after combining sources!');
+      }
+
+      // Store in Redux
+      dispatch(setAllMedia(mediaItems));
+      
+      // Apply initial filter
+      const initialGallery = [
+        { id: 'camera', isAddButton: true },
+        ...mediaItems,
+      ];
+      dispatch(setGalleryMedia(initialGallery));
+
+      console.log(`✅ Loaded ${mediaItems.length} media items (combined)`);
+    } catch (error) {
+      console.error('❌ Error loading gallery images:', error);
+      dispatch(setError(error.message));
+      dispatch(setGalleryMedia([{ id: 'camera', isAddButton: true }]));
+      
+      if (error?.message?.includes('RNCCameraRoll') || error?.message?.includes('TurboModule')) {
+        Alert.alert(
+          'Native Module Error',
+          'CameraRoll module is not linked. Please rebuild the app.',
+          [{ text: 'OK' }]
+        );
+      }
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch, checkStoragePermission, requestStoragePermission]);
+
+  // Apply filter to gallery
+  const applyFilter = useCallback((mediaItems, filterType) => {
+    let filtered = [];
+    
+    switch (filterType) {
+      case 'Photos':
+        filtered = mediaItems.filter(item => item.type === 'image' || (!item.isVideo && item.type !== 'video'));
+        break;
+      case 'Videos':
+        // Filter videos - check both type and isVideo flag, AND check URI patterns as fallback
+        filtered = mediaItems.filter(item => {
+          if (!item || !item.uri) return false;
+          
+          const isVideoByType = item.type === 'video' || item.isVideo === true;
+          
+          // Also check URI pattern as fallback (in case detection failed)
+          const uriHasVideoExtension = /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri) ||
+                                       item.uri.toLowerCase().includes('video');
+          
+          return (isVideoByType || uriHasVideoExtension);
+        });
+        
+        console.log(`🎥 Filtering videos: Total items: ${mediaItems.length}, Videos found: ${filtered.length}`);
+        
+        if (filtered.length > 0) {
+          console.log(`✅ SUCCESS! Found ${filtered.length} videos in filter`);
+          console.log(`🎥 Sample video items:`, filtered.slice(0, 5).map((v, idx) => ({ 
+            index: idx,
+            type: v.type, 
+            isVideo: v.isVideo, 
+            hasUri: !!v.uri,
+            uri: v.uri?.substring(0, 100) 
+          })));
+        } else {
+          console.log('❌ NO VIDEOS FOUND IN FILTER!');
+        }
+        break;
+      case 'All albums':
+        filtered = mediaItems;
+        break;
+      case 'Recents':
+      default:
+        filtered = mediaItems;
+        break;
+    }
+
+    // Add camera button as first item and update Redux
+    const filteredGallery = [
+      { id: 'camera', isAddButton: true },
+      ...filtered,
+    ];
+    dispatch(setGalleryMedia(filteredGallery));
+  }, [dispatch]);
+
+  // Handle filter selection
+  const handleFilterSelect = useCallback((filterType) => {
+    dispatch(setSelectedFilter(filterType));
+    setShowRecentsDropdown(false);
+    
+    // Debug before filtering
+    if (filterType === 'Videos') {
+      console.log(`🎥 Filtering for videos. All media count: ${allMedia.length}`);
+      const videosInAll = allMedia.filter(m => m.type === 'video' || m.isVideo);
+      console.log(`🎥 Videos in allMedia: ${videosInAll.length}`);
+    }
+    
+    applyFilter(allMedia, filterType);
+  }, [dispatch, allMedia, applyFilter]);
+
+  // Load gallery on initial mount
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      loadGalleryImages();
+    }
+  }, [loadGalleryImages]);
+
+  // Reload gallery when screen comes into focus (but not on initial mount)
+  useFocusEffect(
+    useCallback(() => {
+      if (!isFirstMount.current) {
+        loadGalleryImages();
+      }
+    }, [loadGalleryImages])
+  );
+
+  const getScreenTitle = () => {
+    switch (selectedTab) {
+      case 'STORY':
+        return 'New story';
+      case 'REEL':
+        return 'New reel';
+      default:
+        return 'New post';
+    }
+  };
+
+  const handleClose = () => {
+    navigation.goBack();
+  };
+
+  const handleNext = () => {
+    // Handle next button press
+    console.log('Next pressed');
+  };
+
+  const handleTabPress = (tab) => {
+    setSelectedTab(tab);
+  };
+
+  // Handle long press to enable multi-select mode and select item
+  const handleImageLongPress = (item) => {
+    if (item.isAddButton || item.isVideo) {
       return;
     }
 
-    const options = {
-      mediaType: 'photo',
-      quality: 0.8,
-      includeBase64: false,
-      selectionLimit: 0, // 0 means no limit (but may be limited by system)
-    };
-
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel) {
-        console.log('📸 PostScreen: User cancelled gallery');
-      } else if (response.errorMessage) {
-        console.error('❌ PostScreen: Gallery error:', response.errorMessage);
-      } else if (response.assets && response.assets.length > 0) {
-        console.log(`✅ PostScreen: Selected ${response.assets.length} images from gallery`);
-        // Reload gallery after selection to refresh the grid
-        loadGalleryImages();
-      }
-    });
-  };
-
-  // Handle camera button press
-  const handleCameraPress = async () => {
-    if (Platform.OS === 'android') {
-      const hasPermission = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.CAMERA,
-        {
-          title: 'Camera Permission',
-          message: 'This app needs access to camera to take photos.',
-          buttonNeutral: 'Ask Me Later',
-          buttonNegative: 'Cancel',
-          buttonPositive: 'OK',
-        }
-      );
-      if (hasPermission !== PermissionsAndroid.RESULTS.GRANTED) {
-        Alert.alert('Permission Denied', 'Camera permission is required.');
-        return;
-      }
+    // Enable multi-select mode if not already enabled
+    if (!isMultiSelect) {
+      setIsMultiSelect(true);
     }
 
-    const options = {
-      mediaType: 'photo',
-      quality: 0.8,
-      includeBase64: false,
-      saveToPhotos: true,
-    };
-
-    launchCamera(options, (response) => {
-      if (response.didCancel) {
-        console.log('📸 PostScreen: User cancelled camera');
-      } else if (response.errorMessage) {
-        console.error('❌ PostScreen: Camera error:', response.errorMessage);
-        Alert.alert('Error', 'Failed to open camera. Please try again.');
-      } else if (response.assets && response.assets[0]) {
-        console.log('✅ PostScreen: Photo captured:', response.assets[0].uri);
-        // Reload gallery after capture to show new photo
-        loadGalleryImages();
-      }
-    });
+    // Select the item using Redux
+    if (!selectedImageIds.includes(item.id)) {
+      dispatch(addSelectedImageId(item.id));
+    }
   };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (showFilterDropdown) {
-        setShowFilterDropdown(false);
-      }
-    };
-    // Note: For React Native, we'll handle this differently
-    // Dropdown will close when an option is selected
-  }, [showFilterDropdown]);
+  // Handle image press
+  const handleImagePress = (item) => {
+    if (item.isAddButton) {
+      // Handle camera press
+      console.log('Camera pressed');
+      return;
+    }
 
-  // Check permission status on mount (only once)
-  useEffect(() => {
-    if (hasCheckedPermissionRef.current) return;
-    
-    const checkPermissionStatus = async () => {
-      hasCheckedPermissionRef.current = true;
-      console.log('🔍 Initial permission check on mount...');
-      const granted = await checkStoragePermission();
-      console.log('🔍 Initial permission check result:', granted);
-      setHasPermission(granted);
-      hasPermissionRef.current = granted;
-      
-      if (granted && !isLoadingRef.current) {
-        // Load images if permission is already granted
-        console.log('✅ Permission granted on mount, loading gallery...');
-        setTimeout(() => {
-          if (!isLoadingRef.current) {
-            loadGalleryImages(true);
-          }
-        }, 300);
+    // If multi-select mode is enabled, toggle selection
+    if (isMultiSelect && !item.isVideo) {
+      if (selectedImageIds.includes(item.id)) {
+        dispatch(removeSelectedImageId(item.id));
       } else {
-        console.log('❌ Permission not granted on mount, will show permission screen');
-        // Set to null initially to show loading, then false if not granted
-        if (!granted) {
-          setHasPermission(false);
-        }
+        dispatch(addSelectedImageId(item.id));
       }
+      return;
+    }
+
+    // Normal mode - show preview using Redux
+    // Ensure item has correct properties before dispatching
+    const previewItem = {
+      ...item,
+      // Explicitly set isVideo to false if it's not a video
+      isVideo: item.isVideo === true || item.type === 'video' ? true : false,
+      type: item.type || (item.isVideo ? 'video' : 'image'),
     };
     
-    checkPermissionStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    console.log('📸 Setting preview item:', {
+      id: previewItem.id,
+      type: previewItem.type,
+      isVideo: previewItem.isVideo,
+      uri: previewItem.uri?.substring(0, 100),
+    });
+    
+    dispatch(setSelectedPreviewItem(previewItem));
+  };
 
-  // Auto-open gallery when screen is focused (only once)
-  useFocusEffect(
-    React.useCallback(() => {
-      console.log('📸 PostScreen: Screen focused');
-      
-      // Only check permission once per session using ref
-      if (!hasCheckedPermissionRef.current) {
-        hasCheckedPermissionRef.current = true;
-        checkStoragePermission().then(granted => {
-          setHasPermission(granted);
-          hasPermissionRef.current = granted;
-          
-          if (granted && !isLoadingRef.current) {
-            console.log('✅ PostScreen: Permission granted, loading gallery...');
-            loadGalleryImages(true);
-          } else if (!granted && !isLoadingRef.current) {
-            // Request permission only if not granted
-            requestStoragePermission().then(granted => {
-              if (granted && !isLoadingRef.current) {
-                loadGalleryImages(true);
-              }
-            });
-          }
-        });
-      } else {
-        // Re-check permission when screen comes back from settings (without state dependency)
-        checkStoragePermission().then(granted => {
-          const previousPermission = hasPermissionRef.current;
-          console.log('🔄 Re-checking permissions - Previous:', previousPermission, 'Current:', granted);
-          
-          if (granted !== previousPermission) {
-            console.log('✅ Permission status changed, updating...');
-            setHasPermission(granted);
-            hasPermissionRef.current = granted;
-            if (granted && !isLoadingRef.current) {
-              console.log('✅ PostScreen: Permission granted after returning from settings');
-              loadGalleryImages(true);
-            }
-          } else if (granted) {
-            // Permission already granted, but reload if gallery is empty
-            console.log('✅ Permission already granted, ensuring gallery is loaded');
-            if (galleryImages.length <= 1 && !isLoadingRef.current) {
-              loadGalleryImages(true);
-            }
-          }
-        });
+  // Clear selections when exiting multi-select mode
+  const handleMultiSelectToggle = () => {
+    setIsMultiSelect(!isMultiSelect);
+    if (isMultiSelect) {
+      // Exiting multi-select mode, clear selections
+      dispatch(clearSelectedImageIds());
+    }
+  };
+
+  // Handle scroll to show/hide preview
+  const handleScroll = useCallback((event) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const scrollDifference = currentScrollY - lastScrollY;
+    
+    // Threshold for scroll detection (to avoid flickering)
+    const scrollThreshold = 10;
+    
+    if (scrollDifference > scrollThreshold && currentScrollY > 50) {
+      // Scrolling down - hide preview
+      if (showPreview && selectedPreviewItem) {
+        setShowPreview(false);
       }
-
-      // Auto-open gallery picker (Instagram style) - only once when screen first opens
-      if (!hasAutoOpened && hasPermissionRef.current === true) {
-        const timer = setTimeout(async () => {
-          console.log('📸 PostScreen: Auto-opening gallery picker...');
-          const options = {
-            mediaType: 'photo',
-            quality: 0.8,
-            includeBase64: false,
-            selectionLimit: 0,
-          };
-
-          launchImageLibrary(options, (response) => {
-            if (response.didCancel) {
-              console.log('📸 PostScreen: User cancelled auto-opened gallery');
-            } else if (response.errorMessage) {
-              console.error('❌ PostScreen: Gallery error:', response.errorMessage);
-            } else if (response.assets && response.assets.length > 0) {
-              console.log(`✅ PostScreen: Selected ${response.assets.length} images`);
-              // Reload gallery after selection
-              if (!isLoadingRef.current) {
-                loadGalleryImages(true);
-              }
-            }
-          });
-          setHasAutoOpened(true);
-        }, 800); // Small delay to let screen render
-
-        return () => clearTimeout(timer);
+    } else if (scrollDifference < -scrollThreshold) {
+      // Scrolling up - show preview
+      if (!showPreview && selectedPreviewItem) {
+        setShowPreview(true);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasAutoOpened])
-  );
+    }
+    
+    setLastScrollY(currentScrollY);
+  }, [lastScrollY, showPreview, selectedPreviewItem]);
+
+  // Reset preview visibility when new item is selected
+  useEffect(() => {
+    if (selectedPreviewItem) {
+      setShowPreview(true);
+      setLastScrollY(0);
+    }
+  }, [selectedPreviewItem]);
 
   return (
     <CommonBackground>
-      <StatusBar barStyle="light-content" backgroundColor="#140034" />
-
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      
       {/* Header */}
-      <ModeSwitchHeader customTitle="Uploads" style={{ paddingTop: insets.top }} />
-
-      {/* Sub Header */}
-      <View style={styles.subHeader}>
-        <View style={styles.filterContainer}>
-          <TouchableOpacity 
-            style={styles.recentButton}
-            onPress={toggleDropdown}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={handleClose}
+          activeOpacity={0.7}
+        >
+          <CloseIcon width={24} height={24} color="white" />
+        </TouchableOpacity>
+        
+        <Text style={styles.headerTitle}>{getScreenTitle()}</Text>
+        
+        <TouchableOpacity
+          style={styles.nextButton}
+          onPress={handleNext}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.nextButtonText}>Next</Text>
+        </TouchableOpacity>
+      </View>
+  {/* Preview Section - Half Screen */}
+  {selectedPreviewItem && showPreview && (
+        <View style={styles.previewContainer}>
+          <TouchableOpacity
+            style={styles.previewCloseButton}
+            onPress={() => dispatch(clearSelectedPreviewItem())}
             activeOpacity={0.7}
-            ref={dropdownRef}
           >
-            <Text style={styles.recentText}>
-              {mediaFilter === 'recent' ? 'Recent' : mediaFilter === 'photo' ? 'Photos' : 'Videos'}
-            </Text>
-            <ChevronDownIcon width={16} height={16} color="white" />
+            <CloseIcon width={20} height={20} color="white" />
           </TouchableOpacity>
           
-          {/* Overlay to close dropdown when clicking outside */}
-          {showFilterDropdown && (
-            <Pressable 
-              style={styles.dropdownOverlay}
-              onPress={() => setShowFilterDropdown(false)}
-              android_disableSound={true}
+          {/* Explicitly check if it's a video - use multiple conditions */}
+          {(selectedPreviewItem.isVideo === true || selectedPreviewItem.type === 'video') ? (
+            <Video
+              source={{ uri: selectedPreviewItem.uri }}
+              style={styles.previewMedia}
+              paused={false}
+              muted={true}
+              resizeMode="contain"
+              poster={selectedPreviewItem.thumbnailUri || selectedPreviewItem.uri}
+              posterResizeMode="cover"
+              repeat={true}
+              playInBackground={false}
+              ignoreSilentSwitch="ignore"
+              onError={(error) => {
+                console.error('❌ Video playback error:', error);
+                console.error('❌ Video URI:', selectedPreviewItem.uri);
+                console.error('❌ Preview item type:', selectedPreviewItem.type, 'isVideo:', selectedPreviewItem.isVideo);
+              }}
+              onLoadStart={() => {
+                console.log('🎥 Video load started:', selectedPreviewItem.uri?.substring(0, 100));
+              }}
+              onLoad={() => {
+                console.log('✅ Video loaded successfully');
+              }}
+            />
+          ) : (
+            <Image
+              source={{ uri: selectedPreviewItem.uri }}
+              style={styles.previewMedia}
+              resizeMode="contain"
+              onError={(error) => {
+                console.error('❌ Image load error:', error);
+                console.error('❌ Image URI:', selectedPreviewItem.uri);
+                console.error('❌ Preview item type:', selectedPreviewItem.type, 'isVideo:', selectedPreviewItem.isVideo);
+              }}
+              onLoadStart={() => {
+                console.log('📸 Image load started:', selectedPreviewItem.uri?.substring(0, 100));
+              }}
+              onLoad={() => {
+                console.log('✅ Image loaded successfully');
+              }}
             />
           )}
           
-          {/* Filter Dropdown */}
-          {showFilterDropdown && (
-            <View style={styles.filterDropdown}>
-              <TouchableOpacity
-                style={[styles.filterOption, mediaFilter === 'recent' && styles.filterOptionActive]}
-                onPress={() => handleFilterSelect('recent')}
-                activeOpacity={0.6}
-              >
-                <Text style={[styles.filterOptionText, mediaFilter === 'recent' && styles.filterOptionTextActive]}>
-                  Recent
-                </Text>
-                {mediaFilter === 'recent' && <View style={styles.filterIndicator} />}
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.filterOption, mediaFilter === 'photo' && styles.filterOptionActive]}
-                onPress={() => handleFilterSelect('photo')}
-                activeOpacity={0.6}
-              >
-                <Text style={[styles.filterOptionText, mediaFilter === 'photo' && styles.filterOptionTextActive]}>
-                  Photos
-                </Text>
-                {mediaFilter === 'photo' && <View style={styles.filterIndicator} />}
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.filterOption, mediaFilter === 'video' && styles.filterOptionActive]}
-                onPress={() => handleFilterSelect('video')}
-                activeOpacity={0.6}
-              >
-                <Text style={[styles.filterOptionText, mediaFilter === 'video' && styles.filterOptionTextActive]}>
-                  Videos
-                </Text>
-                {mediaFilter === 'video' && <View style={styles.filterIndicator} />}
-              </TouchableOpacity>
+          {/* Video duration overlay for videos */}
+          {(selectedPreviewItem.isVideo === true || selectedPreviewItem.type === 'video') && selectedPreviewItem.duration && (
+            <View style={styles.previewDurationBadge}>
+              <Text style={styles.previewDurationText}>
+                {formatDuration(selectedPreviewItem.duration)}
+              </Text>
             </View>
           )}
         </View>
-    
-      </View>
+      )}
+      {/* Gallery Controls */}
+      <View style={styles.galleryControls}>
+          <View style={styles.filterContainer}>
+            <TouchableOpacity
+            style={styles.recentsButton}
+            onPress={() => setShowRecentsDropdown(!showRecentsDropdown)}
+              activeOpacity={0.7}
+            >
+            <Text style={styles.recentsText}>{selectedFilter}</Text>
+            <View style={{ marginLeft: 4 }}>
+              <ChevronDownIcon width={16} height={16} color="white" />
+            </View>
+            </TouchableOpacity>
 
-      {/* Upload Grid (Scrollable) */}
-      {hasPermission === false ? (
+          {/* Dropdown Menu */}
+          {showRecentsDropdown && (
+            <View style={styles.dropdownMenu}>
+                <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => handleFilterSelect('Recents')}
+                activeOpacity={0.7}
+              >
+                <RecentsIcon width={20} height={20} color="white" />
+                <Text style={styles.dropdownItemText}>Recents</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => handleFilterSelect('Photos')}
+                activeOpacity={0.7}
+              >
+                <PhotosIcon width={20} height={20} color="white" />
+                <Text style={styles.dropdownItemText}>Photos</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => handleFilterSelect('Videos')}
+                activeOpacity={0.7}
+              >
+                <VideosIcon width={20} height={20} color="white" />
+                <Text style={styles.dropdownItemText}>Videos</Text>
+                </TouchableOpacity>
+
+           
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+          style={styles.selectMultipleButton}
+          onPress={handleMultiSelectToggle}
+            activeOpacity={0.7}
+          >
+          <SelectMultipleIcon 
+              width={18} 
+              height={18} 
+            color={isMultiSelect ? '#0095F6' : 'white'} 
+          />
+          <Text style={[
+            styles.selectMultipleText,
+            isMultiSelect && styles.selectMultipleTextActive
+          ]}>
+            SELECT MULTIPLE
+          </Text>
+          </TouchableOpacity>
+        </View>
+
+      {/* Image Grid */}
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0095F6" />
+          <Text style={styles.loadingText}>Loading gallery...</Text>
+        </View>
+      ) : hasPermission === false ? (
         <View style={styles.permissionContainer}>
           <Text style={styles.permissionTitle}>Permission Required</Text>
           <Text style={styles.permissionText}>
             Please allow access to your photos to view and select images from your gallery.
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.permissionButton}
             onPress={async () => {
-              console.log('🔐 User clicked Grant Permission button');
-              // First check current permission status
-              const currentPermission = await checkStoragePermission();
-              console.log('🔐 Current permission status:', currentPermission);
-              
-              if (currentPermission) {
-                // Permission already granted, just update state
-                console.log('✅ Permission already granted, updating state');
-                setHasPermission(true);
-                hasPermissionRef.current = true;
-                loadGalleryImages(true);
-              } else {
-                // Request permission
                 const granted = await requestStoragePermission();
-                console.log('🔐 Permission request result:', granted);
                 if (granted) {
-                  hasPermissionRef.current = true;
-                  loadGalleryImages(true);
-                }
+                loadGalleryImages();
               }
             }}
           >
             <Text style={styles.permissionButtonText}>Grant Permission</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingsButton}
-            onPress={async () => {
-              console.log('⚙️ Opening settings...');
-              openSettings();
-              // Re-check permission after a delay when returning from settings
-              setTimeout(async () => {
-                const granted = await checkStoragePermission();
-                console.log('🔐 Permission status after settings:', granted);
-                if (granted) {
-                  setHasPermission(true);
-                  hasPermissionRef.current = true;
-                  loadGalleryImages(true);
-                }
-              }, 1000);
-            }}
+            onPress={() => Linking.openSettings()}
           >
             <Text style={styles.settingsButtonText}>Open Settings</Text>
           </TouchableOpacity>
         </View>
-      ) : isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#DD3562" />
-          <Text style={styles.loadingText}>Loading gallery...</Text>
-        </View>
       ) : (
-      <ScrollView
-        style={styles.uploadScroll}
-        contentContainerStyle={styles.uploadGrid}
-        showsVerticalScrollIndicator={false}
-      >
-          {galleryImages.length === 0 || galleryImages.length === 1 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No images found</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={() => loadGalleryImages(false)}>
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            galleryImages.map((item) => (
-              <TouchableOpacity 
-                key={item.id} 
-                style={styles.uploadCard}
-                onPress={() => {
-                  if (item.isAddButton) {
-                    handleCameraPress();
-                  } else if (!item.isVideo) {
-                    // Navigate to CropScreen when image is selected (only for images, not videos)
-                    navigation.navigate('Crop', { 
-                      imageUri: item.uri
-                    });
-                  }
-                  // Videos can be handled differently if needed
-                }}
-              >
-            {item.isAddButton ? (
-              <View style={styles.addButton}>
-                <CameraIcon width={32} height={32} color="white" />
-              </View>
-                ) : item.isVideo ? (
-                  <View style={styles.videoContainer}>
-                    <Image source={{ uri: item.uri }} style={styles.uploadImage} resizeMode="cover" />
-                    <View style={styles.videoOverlay}>
-                      <View style={styles.playIcon}>
-                        <Svg width={24} height={24} viewBox="0 0 24 24" fill="white">
-                          <Path d="M8 5v14l11-7z" />
-                        </Svg>
-                      </View>
+        <ScrollView
+          ref={scrollViewRef}
+          style={[
+            styles.scrollView,
+            selectedPreviewItem && showPreview && styles.scrollViewWithPreview
+          ]}
+          contentContainerStyle={styles.imageGrid}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+        >
+          {galleryMedia.map((item) => {
+            const isSelected = selectedImageIds.includes(item.id);
+            const showCheckbox = isMultiSelect && !item.isAddButton && !item.isVideo;
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                  styles.imageCard,
+                  isSelected && styles.imageCardSelected
+                ]}
+                onPress={() => handleImagePress(item)}
+                onLongPress={() => handleImageLongPress(item)}
+                activeOpacity={0.8}
+                >
+                  {item.isAddButton ? (
+                  <View style={styles.cameraButton}>
+                      <CameraIcon width={32} height={32} color="white" />
                     </View>
-                  </View>
-                ) : (
-                  <Image source={{ uri: item.uri }} style={styles.uploadImage} resizeMode="cover" />
-            )}
-          </TouchableOpacity>
-            ))
-          )}
-      </ScrollView>
+                ) : item.isVideo ? (
+                  // Video thumbnail rendering - Use Image for better performance
+                    <View style={styles.videoContainer}>
+                    <Image
+                      source={{ uri: item.thumbnailUri || item.uri }}
+                      style={styles.image}
+                      resizeMode="cover"
+                    />
+                    {/* Play icon overlay */}
+                    <View style={styles.videoPlayOverlay}>
+                      <View style={styles.videoPlayButton}>
+                        <PlayIcon width={24} height={24} color="white" />
+                        </View>
+                      </View>
+                    {/* Duration badge */}
+                      {item.duration && (
+                        <View style={styles.videoDurationBadge}>
+                        <Text style={styles.videoDurationText}>
+                          {formatDuration(item.duration)}
+                        </Text>
+                        </View>
+                      )}
+                    {showCheckbox && (
+                      <View style={[
+                        styles.checkbox,
+                        isSelected && styles.checkboxSelected
+                      ]}>
+                        {isSelected && (
+                          <CheckIcon width={14} height={14} color="white" />
+                        )}
+                      </View>
+                    )}
+                    {isSelected && (
+                      <View style={styles.selectedOverlay} />
+                    )}
+                    </View>
+                  ) : (
+                  // Image rendering
+                  <>
+                    <Image
+                      source={{ uri: item.uri }}
+                      style={styles.image}
+                      resizeMode="cover"
+                    />
+                      {showCheckbox && (
+                        <View style={[
+                          styles.checkbox,
+                          isSelected && styles.checkboxSelected
+                        ]}>
+                          {isSelected && (
+                            <CheckIcon width={14} height={14} color="white" />
+                          )}
+                        </View>
+                      )}
+                      {isSelected && (
+                        <View style={styles.selectedOverlay} />
+                      )}
+                  </>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+        </ScrollView>
       )}
 
-      {/* <View style={styles.tabsWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabBarContent}
+      {/* Bottom Tab Bar */}
+      <View style={[styles.bottomTabBar, { paddingBottom: insets.bottom }]}>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === 'POST' && styles.tabButtonActive
+          ]}
+          onPress={() => handleTabPress('POST')}
+          activeOpacity={0.7}
         >
-          {filterTabs.map(tab => {
-            const isActive = activeTab === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                activeOpacity={1}
-                style={styles.tabButton}
-              >
-                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                  {isActive ? (
-                    <LinearGradient
-                      colors={gradients.primary}
-                      start={{ x: 0.3, y: 0 }}
-                      end={{ x: 0.7, y: 1 }}
-                      style={styles.pillTab}
-                    >
-                      <Text style={styles.pillTabText}>{tab}</Text>
-                      <Svg
-                        width="100%"
-                        height={8}
-                        style={styles.pillCurveSvg}
-                        viewBox="0 0 90 8"
-                        preserveAspectRatio="none"
-                      >
-                        <Path
-                          d="M0 8 Q45 -6 90 8"
-                          fill="none"
-                          stroke="#B34AFF"
-                          strokeWidth="1.5"
-                        />
-                      </Svg>
-                    </LinearGradient>
-                  ) : (
-                    <Text style={styles.inactiveTabText}>{tab}</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View> */}
+          <Text
+            style={[
+              styles.tabText,
+              selectedTab === 'POST' && styles.tabTextActive
+            ]}
+          >
+            POST
+          </Text>
+        </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === 'STORY' && styles.tabButtonActive
+          ]}
+          onPress={() => handleTabPress('STORY')}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              selectedTab === 'STORY' && styles.tabTextActive
+            ]}
+          >
+            STORY
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === 'REEL' && styles.tabButtonActive
+          ]}
+          onPress={() => handleTabPress('REEL')}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              selectedTab === 'REEL' && styles.tabTextActive
+            ]}
+          >
+            REEL
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Dropdown Overlay */}
+      {showRecentsDropdown && (
+        <Pressable
+          style={styles.dropdownOverlay}
+          onPress={() => setShowRecentsDropdown(false)}
+        />
+      )}
     </CommonBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#000000',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  subHeader: {
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  nextButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  nextButtonText: {
+    color: '#0095F6',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  galleryControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#140034',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#000000',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 100,
+  },
+  previewContainer: {
+    height: Dimensions.get('window').height * 0.3,
+    width: '100%',
+    backgroundColor: '#000000',
+    position: 'relative',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  previewMedia: {
+    width: '100%',
+    height: '100%',
+  },
+  previewCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  previewDurationBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    zIndex: 10,
+  },
+  previewDurationText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewWithPreview: {
+    height: Dimensions.get('window').height * 0.5,
   },
   filterContainer: {
     position: 'relative',
-    zIndex: 100,
+    zIndex: 1000,
   },
-  dropdownOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    zIndex: 98,
-  },
-  recentButton: {
+  recentsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-   
-    borderRadius: 8,
-    minWidth: 100,
   },
-  recentText: {
+  recentsText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '500',
-    marginRight: 8,
+    marginRight: 6,
   },
-  filterDropdown: {
+  dropdownMenu: {
     position: 'absolute',
     top: 40,
     left: 0,
-    backgroundColor: '#1a0a3d',
-    borderRadius: 8,
-    paddingVertical: 4,
-    minWidth: 150,
-    zIndex: 1000,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 200,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -875,58 +1310,88 @@ const styles = StyleSheet.create({
     elevation: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 1001,
   },
-  filterOption: {
+  dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    minWidth: 150,
   },
-  filterOptionActive: {
-    backgroundColor: 'rgba(221, 53, 98, 0.15)',
-  },
-  filterOptionText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  filterOptionTextActive: {
+  dropdownItemText: {
     color: 'white',
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '400',
+    marginLeft: 16,
   },
-  filterIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#DD3562',
-  },
-  menuButton: {
-    padding: 4,
-  },
-  uploadGrid: {
+  selectMultipleButton: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 0,
-  },
-  uploadScroll: {
-    flex: 1,
-  },
-  uploadCard: {
-    width: imageWidth,
-    height: imageWidth,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  addButton: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'black',
-    justifyContent: 'center',
     alignItems: 'center',
   },
-  uploadImage: {
+  selectMultipleText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginLeft: 6,
+  },
+  selectMultipleTextActive: {
+    color: '#0095F6',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingBottom: 100,
+  },
+  imageCard: {
+    width: imageWidth,
+    height: imageWidth,
+    backgroundColor: '#000000',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    position: 'relative',
+  },
+  imageCardSelected: {
+    opacity: 0.7,
+  },
+  checkbox: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'white',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  checkboxSelected: {
+    backgroundColor: '#0095F6',
+    borderColor: '#0095F6',
+  },
+  selectedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 149, 246, 0.2)',
+    zIndex: 5,
+  },
+  cameraButton: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+  },
+  image: {
     width: '100%',
     height: '100%',
   },
@@ -935,172 +1400,75 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
-  videoOverlay: {
+  videoPlayOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    zIndex: 3,
   },
-  playIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabsContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#140034',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  tabsScrollContent: {
-    paddingRight: 20,
-    alignItems: 'center',
-  },
-  tabWrapper: {
-    marginHorizontal: 6,
-    alignItems: 'center',
-  },
-  activeTab: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    shadowColor: '#DD3562',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 6,
-  },
-  inactiveTab: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+  videoPlayButton: {
+    width: 48,
+    height: 48,
     borderRadius: 24,
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
   },
-  activeTabText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '700',
-  },
- 
-  activeIndicator: {
+  videoDurationBadge: {
     position: 'absolute',
-    bottom: -1,
-    left: '50%',
-    marginLeft: -15,
-    width: 30,
-    height: 3,
-    backgroundColor: '#DD3562',
-    borderRadius: 2,
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    zIndex: 4,
   },
-  activeTabPill: {
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 24, // Large value for full pill shape
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#DD3562',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 10,
-    position: 'relative',
-    zIndex: 2,
-    // Optionally: raise the pill above others for "lift" effect
-    marginTop: -14, // Lifts the pill visually above the bar
-    marginBottom: -8, // Allows pill to overlap tab bar
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.08)', // Matches subtle Figma border
+  videoDurationText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
   },
-  
-  tabsWrapper: {
-    paddingTop: 10,
-    backgroundColor: '#140034',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-    zIndex: 10,
-  },
-  tabBarContent: {
-    minHeight: 48,
-    alignItems: 'flex-end',
-    paddingHorizontal: 0,
-    paddingBottom: 0,
-  },
-  tabButton: {
-    minWidth: 60,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginHorizontal: 4,
-    paddingBottom: 0,
-  },
-
-  /** ACTIVE TAB (PILL) **/
-  pillTab: {
-    paddingHorizontal: 22,
-    paddingTop: 9,
-    paddingBottom: 7,
-    borderRadius: 18,
-    backgroundColor: undefined, // LinearGradient takes over the bg
-    shadowColor: '#8354FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.30,
-    shadowRadius: 14,
-    elevation: 7,
-    minWidth: 82,
-    minHeight: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 99,
-    borderWidth: 1.5,
-    borderColor: 'rgba(179,74,255,1)', // matches the glow edge in Figma
-    overflow: 'visible',
-    marginTop: -10,
-  },
-  pillTabText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-    zIndex: 2,
-    paddingHorizontal: 3,
-    paddingBottom: 0,
-  },
-  pillCurveSvg: {
+  bottomTabBar: {
     position: 'absolute',
-    width: '100%',
-    height: 8,
-    bottom: -8,
+    bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 0,
-    // This creates the little up curve effect under the pill (fine-tune color to Figma)
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    paddingHorizontal: 0,
+    paddingTop: 8,
   },
-
-  /** INACTIVE TAB **/
-  inactiveTabText: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 16,
-    fontWeight: '500',
-    paddingHorizontal: 16,
-    height: 38,
-    textAlignVertical: 'bottom',
-    textAlign: 'center',
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    marginHorizontal: 2,
+    borderRadius: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  tabText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  tabTextActive: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  dropdownOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 999,
   },
   loadingContainer: {
     flex: 1,
@@ -1112,28 +1480,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     marginTop: 16,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 50,
-  },
-  emptyText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#DD3562',
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
   permissionContainer: {
     flex: 1,
@@ -1157,7 +1503,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   permissionButton: {
-    backgroundColor: '#DD3562',
+    backgroundColor: '#0095F6',
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 10,

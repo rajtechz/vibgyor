@@ -40,7 +40,7 @@ export default function AccountScreen() {
             id: 1,
             title: 'Personal Details',
             icon: <PersonalDetailsIcon width={20} height={20} />,
-            onPress: () => navigation.navigate('PersonalDetails'),
+            onPress: () => navigation.navigate('ViewPersonalDetails'),
         },
         {
             id: 2,
@@ -107,7 +107,7 @@ export default function AccountScreen() {
                 <Animated.View style={{ transform: [{ scale: backButtonScale }] }}>
                     <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
                         <BackIcon width={24} height={24} color="#D9D8F3" />
-                </TouchableOpacity>
+                    </TouchableOpacity>
                 </Animated.View>
                 <Text style={styles.headerTitle}>Account</Text>
             </View>
@@ -154,17 +154,20 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 20,
         paddingBottom: 20,
     },
     backButton: {
-        padding: 8,
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     headerTitle: {
         fontSize: 22,
         fontWeight: '700',
         color: '#DD3562',
-        marginLeft: 16,
     },
     scrollContainer: {
         flex: 1,

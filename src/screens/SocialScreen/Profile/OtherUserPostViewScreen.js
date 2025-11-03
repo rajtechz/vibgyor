@@ -1,24 +1,13 @@
 // src/screens/Profile/OtherUserPostViewScreen.js
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useDispatch } from 'react-redux';
 import CommonBackground from '../../../components/common/CommonBackground';
 import PostCardView from '../../../components/common/PostCardView';
-import Svg, { Path } from 'react-native-svg';
-
-// Back Arrow Icon
-const BackArrowIcon = ({ width = 24, height = 24, color = 'white' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M19 12H5M12 19L5 12L12 5"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+import { BackIcon } from '../../../components/icons/SvgIcons';
+import { hideTabBar, showTabBar, setCurrentScreen } from '../../../redux/slices/uiSlice';
 
 // Sample data for other user's posts
 const OTHER_USER_POSTS_DATA = [
@@ -79,6 +68,7 @@ const OTHER_USER_POSTS_DATA = [
 function OtherUserPostViewScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   
   // Get user data from route params
@@ -87,6 +77,32 @@ function OtherUserPostViewScreen() {
   // State for managing comments for each post
   const [commentStates, setCommentStates] = useState({});
   const [commentTexts, setCommentTexts] = useState({});
+
+  // Redux-based tab bar hiding when OtherUserPostViewScreen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('📝 OtherUserPostViewScreen Focused - Hiding TabBar');
+      dispatch(setCurrentScreen('MyPosts'));
+      dispatch(hideTabBar());
+
+      return () => {
+        console.log('📝 OtherUserPostViewScreen Unfocused - Showing TabBar');
+        dispatch(showTabBar());
+        dispatch(setCurrentScreen(null));
+      };
+    }, [dispatch])
+  );
+
+  // Additional backup using useLayoutEffect
+  useLayoutEffect(() => {
+    dispatch(setCurrentScreen('MyPosts'));
+    dispatch(hideTabBar());
+
+    return () => {
+      dispatch(showTabBar());
+      dispatch(setCurrentScreen(null));
+    };
+  }, [dispatch]);
 
   const handlePostPress = (post) => {
     console.log('Post pressed:', post.id);
@@ -135,10 +151,9 @@ function OtherUserPostViewScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <BackArrowIcon width={24} height={24} color="white" />
+          <BackIcon width={24} height={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Posts</Text>
-        <View style={styles.headerSpacer} />
       </View>
       
       <KeyboardAvoidingView 
@@ -179,12 +194,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#140034',
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'white',
+    color: '#DD3562',
   },
   headerSpacer: {
     width: 40,
