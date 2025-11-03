@@ -14,7 +14,7 @@ console.log('📦 App.js: Store keys:', Object.keys(store || {}));
 
 // Test different console methods
 console.warn('⚠️ App.js: This is a warning test');
-// console.error('❌ App.js: This is an error test'); // Removed for production
+// consoler.error('❌ App.js: This is an error test'); // Removed for production
 console.info('ℹ️ App.js: This is an info test');
 
 function App() {

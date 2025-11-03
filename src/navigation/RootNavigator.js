@@ -9,6 +9,7 @@ import { checkAuthStatus, isTokenExpired } from '../utils/authUtils';
 import { getInitialRoute } from '../utils/appConfig';
 import { setTokens, setProfileCompletion, refreshAccessToken } from '../redux/slices/authSlice';
 import { authAPI } from '../api/authAPI';
+import { store } from '../redux/store';
 import AuthNavigator from './AuthNavigator';
 import ProfileSetupNavigator from './ProfileSetupNavigator';
 import MainTabNavigator from './MainTabNavigator';
@@ -30,138 +31,142 @@ function RootNavigator() {
         const authStatus = await checkAuthStatus();
         console.log('🔍 RootNavigator: Auth status from AsyncStorage:', authStatus);
         
-        // If no tokens, user is not logged in - go to Auth
-        if (!authStatus.accessToken || !authStatus.refreshToken) {
-          console.log('❌ RootNavigator: No tokens found, redirecting to Auth');
-          setInitialRoute('Auth');
-          return;
-        }
-        
-        console.log('💾 RootNavigator: Tokens found, validating and checking profile status...');
-        
-        // Check if access token is expired
-        let validAccessToken = authStatus.accessToken;
-        if (isTokenExpired(authStatus.accessToken)) {
-          console.log('⚠️ RootNavigator: Access token expired, refreshing...');
-          try {
-            const refreshResult = await dispatch(refreshAccessToken(authStatus.refreshToken));
+        // Initialize Redux state with data from AsyncStorage
+        // Check tokens first, even if isVerified is false (in case of app refresh before flags were saved)
+        if (authStatus.accessToken && authStatus.refreshToken) {
+          console.log('💾 RootNavigator: Restoring Redux state from AsyncStorage');
+          
+          // If tokens exist but isVerified is false, set it to true
+          if (!authStatus.isVerified) {
+            console.log('⚠️ RootNavigator: Tokens found but isVerified is false, setting to true');
+            const { setVerificationStatus } = await import('../utils/authUtils');
+            await setVerificationStatus(true);
+            authStatus.isVerified = true;
+          }
+          
+          // Check if access token is expired
+          if (isTokenExpired(authStatus.accessToken)) {
+            console.log('⚠️ RootNavigator: Access token expired, refreshing...');
+            console.log('🔄 RootNavigator: Refresh token from AsyncStorage:', authStatus.refreshToken ? 'Present' : 'Missing');
+            console.log('🔄 RootNavigator: Refresh token type:', typeof authStatus.refreshToken);
+            console.log('🔄 RootNavigator: Refresh token length:', authStatus.refreshToken?.length);
             
-            if (refreshAccessToken.fulfilled.match(refreshResult)) {
-              console.log('✅ RootNavigator: Token refreshed successfully');
-              const responseData = refreshResult.payload?.data || refreshResult.payload;
-              validAccessToken = responseData?.accessToken || refreshResult.payload?.accessToken || authStatus.accessToken;
-              const newRefreshToken = responseData?.refreshToken || refreshResult.payload?.refreshToken || authStatus.refreshToken;
-              
-              dispatch(setTokens({
-                accessToken: validAccessToken,
-                refreshToken: newRefreshToken,
-                user: null
-              }));
-            } else {
-              console.log('❌ RootNavigator: Token refresh failed, redirecting to login');
-              // Token refresh failed, user needs to login again
+            if (!authStatus.refreshToken || typeof authStatus.refreshToken !== 'string' || authStatus.refreshToken.trim().length === 0) {
+              console.log('❌ RootNavigator: Invalid refresh token, redirecting to login');
               setInitialRoute('Auth');
               return;
             }
-          } catch (error) {
-            console.error('💥 RootNavigator: Error refreshing token:', error);
-            setInitialRoute('Auth');
-            return;
-          }
-        } else {
-          // Token is still valid, restore it
-          dispatch(setTokens({
-            accessToken: validAccessToken,
-            refreshToken: authStatus.refreshToken,
-            user: null // Will be fetched later if needed
-          }));
-        }
-        
-        // Check profile completion status via API (this is the source of truth)
-        // Use Promise.race with timeout to prevent blocking navigation
-        try {
-          console.log('📊 RootNavigator: Checking profile step via API...');
-          
-          // Create a timeout promise (5 seconds)
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('API request timeout')), 5000)
-          );
-          
-          // Race between API call and timeout
-          const profileStepResult = await Promise.race([
-            authAPI.getProfileStep(validAccessToken),
-            timeoutPromise
-          ]);
-          
-          if (profileStepResult && profileStepResult.success) {
-            const profileData = profileStepResult.data?.data || {};
-            const currentStep = profileData.currentStep || profileData.profileCompletionStep;
-            const isCompleted = profileData.isCurrentStepCompleted || profileData.isProfileCompleted || currentStep === 'completed';
             
-            console.log('📊 RootNavigator: Profile Step API Response:', {
-              currentStep,
-              isCompleted,
-              data: profileData
-            });
-            
-            // Update Redux with actual profile status
-            dispatch(setProfileCompletion({
-              isCompleted: isCompleted,
-              step: currentStep || 'personal_details'
-            }));
-            
-            // Update AsyncStorage with actual status
-            const { setProfileSetupStatus, setVerificationStatus } = await import('../utils/authUtils');
-            await setVerificationStatus(true);
-            await setProfileSetupStatus(isCompleted);
-            
-            // Determine route based on API response
-            if (isCompleted || currentStep === 'completed') {
-              console.log('✅ RootNavigator: Profile is completed, navigating to Main');
-              setInitialRoute('Main');
-            } else {
-              console.log('📝 RootNavigator: Profile not completed, navigating to ProfileSetup');
-              setInitialRoute('ProfileSetup');
+            try {
+              const refreshResult = await dispatch(refreshAccessToken(authStatus.refreshToken.trim()));
+              
+              if (refreshAccessToken.fulfilled.match(refreshResult)) {
+                console.log('✅ RootNavigator: Token refreshed successfully');
+                // Extract token from nested response structure: payload.data.data.accessToken
+                const responseData = refreshResult.payload?.data || refreshResult.payload;
+                const newAccessToken = responseData?.data?.accessToken || responseData?.accessToken || refreshResult.payload?.accessToken;
+                const newRefreshToken = responseData?.data?.refreshToken || responseData?.refreshToken || refreshResult.payload?.refreshToken;
+                
+                console.log('🔄 RootNavigator: Extracted new accessToken:', newAccessToken ? 'Present' : 'Missing');
+                
+                if (newAccessToken) {
+                  dispatch(setTokens({
+                    accessToken: newAccessToken,
+                    refreshToken: newRefreshToken || authStatus.refreshToken,
+                    user: null
+                  }));
+                } else {
+                  console.log('⚠️ RootNavigator: No accessToken in refresh response');
+                }
+              } else {
+                console.log('❌ RootNavigator: Token refresh failed, redirecting to login');
+                // Token refresh failed, user needs to login again
+                setInitialRoute('Auth');
+                return;
+              }
+            } catch (error) {
+              console.error('💥 RootNavigator: Error refreshing token:', error);
+              setInitialRoute('Auth');
+              return;
             }
           } else {
-            console.log('❌ RootNavigator: Failed to get profile step, using fallback logic');
-            // If API call fails, use AsyncStorage flags as fallback
+            // Token is still valid, restore it
+            dispatch(setTokens({
+              accessToken: authStatus.accessToken,
+              refreshToken: authStatus.refreshToken,
+              user: null // Will be fetched later if needed
+            }));
+          }
+          
+          // Get token from Redux state (it might have been refreshed)
+          const reduxState = store.getState();
+          const currentAccessToken = reduxState.auth.accessToken || authStatus.accessToken;
+          
+          // Check profile status from API if we have a valid token
+          if (currentAccessToken && !isTokenExpired(currentAccessToken)) {
+            try {
+              console.log('📊 RootNavigator: Checking profile status from API...');
+              const { authAPI } = await import('../api/authAPI');
+              const profileStepResult = await authAPI.getProfileStep(currentAccessToken);
+              
+              if (profileStepResult.success) {
+                const currentStep = profileStepResult.data?.data?.currentStep || profileStepResult.data?.data?.profileCompletionStep;
+                const isProfileCompleted = profileStepResult.data?.data?.isProfileCompleted || 
+                                          profileStepResult.data?.data?.isCurrentStepCompleted ||
+                                          currentStep === 'completed';
+                
+                console.log('📊 RootNavigator: API Profile Status - Step:', currentStep, 'Completed:', isProfileCompleted);
+                
+                // Update Redux and AsyncStorage with actual status from API
+                dispatch(setProfileCompletion({
+                  isCompleted: isProfileCompleted,
+                  step: isProfileCompleted ? 'completed' : currentStep || 'personal_details'
+                }));
+              } else {
+                console.log('⚠️ RootNavigator: Failed to get profile status from API, using AsyncStorage value');
+                dispatch(setProfileCompletion({
+                  isCompleted: authStatus.isProfileSetupDone,
+                  step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
+                }));
+              }
+            } catch (error) {
+              console.error('❌ RootNavigator: Error checking profile status from API:', error);
+              // Fallback to AsyncStorage value
+              dispatch(setProfileCompletion({
+                isCompleted: authStatus.isProfileSetupDone,
+                step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
+              }));
+            }
+          } else {
+            // Set profile completion status from AsyncStorage
             dispatch(setProfileCompletion({
               isCompleted: authStatus.isProfileSetupDone,
               step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
             }));
-            
-            if (authStatus.isProfileSetupDone) {
-              setInitialRoute('Main');
-            } else {
-              setInitialRoute('ProfileSetup');
-            }
-          }
-        } catch (error) {
-          console.error('💥 RootNavigator: Error checking profile step:', error);
-          console.error('💥 RootNavigator: Error details:', {
-            message: error.message,
-            name: error.name,
-            stack: error.stack
-          });
-          
-          // On error (network failure, timeout, etc.), use AsyncStorage flags as fallback
-          console.log('📊 RootNavigator: Using AsyncStorage fallback due to API error');
-          dispatch(setProfileCompletion({
-            isCompleted: authStatus.isProfileSetupDone,
-            step: authStatus.isProfileSetupDone ? 'completed' : 'personal_details'
-          }));
-          
-          if (authStatus.isProfileSetupDone) {
-            console.log('📊 RootNavigator: Using fallback - Profile marked as done, navigating to Main');
-            setInitialRoute('Main');
-          } else {
-            console.log('📊 RootNavigator: Using fallback - Profile not done, navigating to ProfileSetup');
-            setInitialRoute('ProfileSetup');
           }
         }
         
-        console.log('✅ RootNavigator: App initialization complete');
+        // Determine initial route - use actual profile status from Redux (updated by API check)
+        let route;
+        if (authStatus.accessToken && authStatus.refreshToken) {
+          // If user is logged in, determine route based on actual profile status from API
+          const reduxState = store.getState();
+          const profileCompleted = reduxState.auth.isProfileCompleted;
+          
+          if (profileCompleted) {
+            route = 'Main';
+            console.log('✅ RootNavigator: Profile is completed → Navigating to Main');
+          } else {
+            route = 'ProfileSetup';
+            console.log('ℹ️ RootNavigator: Profile not completed → Navigating to ProfileSetup');
+          }
+        } else {
+          // User not logged in, use getInitialRoute
+          route = await getInitialRoute(checkAuthStatus);
+        }
+        
+        setInitialRoute(route);
+        console.log('✅ RootNavigator: App starting with route:', route);
       } catch (error) {
         console.log('❌ RootNavigator: Error initializing app:', error);
         setInitialRoute('Auth'); // fallback to auth flow

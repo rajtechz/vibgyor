@@ -1,0 +1,31 @@
+[33mcommit 646c07591cb6590c5ae4d9fa7c3acd714a47c527[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32msonu[m[33m, [m[1;31morigin/sonu[m[33m)[m
+Author: rajtechz <rajs9697294@gmail.com>
+Date:   Mon Nov 3 15:56:14 2025 +0530
+
+    post screen
+
+android/app/src/main/AndroidManifest.xml
+android/app/src/main/res/xml/network_security_config.xml
+package-lock.json
+package.json
+src/api/config.js
+src/assets/images/btm1.svg
+src/assets/images/btm2.svg
+src/assets/images/btmpbg.svg
+src/assets/images/center.svg
+src/components/common/PostCardView.js
+src/navigation/HomeStackNavigator.js
+src/navigation/ProfileStackNavigator.js
+src/redux/slices/postSlice.js
+src/redux/slices/uiSlice.js
+src/redux/store.js
+src/screens/SocialScreen/Post/CropScreen.js
+src/screens/SocialScreen/Post/PostScreen.js
+src/screens/SocialScreen/Profile/AccountScreen.js
+src/screens/SocialScreen/Profile/CommentsScreen.js
+src/screens/SocialScreen/Profile/EditProfileScreen.js
+src/screens/SocialScreen/Profile/LikesScreen.js
+src/screens/SocialScreen/Profile/OtherUserPostViewScreen.js
+src/screens/SocialScreen/Profile/ProfileScreen.js
+src/screens/SocialScreen/Profile/ViewPersonalDetailsScreen.js
+src/services/MediaStoreService.js

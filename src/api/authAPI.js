@@ -18,7 +18,7 @@ const getLocalServerUrl = () => {
   }
   
   // For network IP testing (if server is bound to 0.0.0.0):
-  // return 'http://192.168.1.19:3000';
+  // return 'http://192.168.29.119:3000';
 };
 
 // Auth API Service
@@ -222,8 +222,6 @@ export const authAPI = {
 
       console.log('📋 Request Headers:', headers);
       
-      console.log('🌐 Attempting to fetch from:', localUrl);
-      
       const response = await fetch(localUrl, {
         method: 'POST',
         headers,
@@ -231,7 +229,6 @@ export const authAPI = {
       });
 
       console.log('📡 Response received, status:', response.status);
-      console.log('📡 Response OK:', response.ok);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -251,10 +248,7 @@ export const authAPI = {
       };
     } catch (error) {
       console.log('❌ AuthAPI: sendEmailOTP error');
-      console.log('💥 Error Type:', typeof error);
       console.log('💥 Error Message:', error.message);
-      console.log('💥 Error Stack:', error.stack);
-      console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
 
       return {
         success: false,
@@ -322,10 +316,7 @@ export const authAPI = {
       };
     } catch (error) {
       console.log('❌ AuthAPI: verifyEmailOTP error');
-      console.log('💥 Error Type:', typeof error);
       console.log('💥 Error Message:', error.message);
-      console.log('💥 Error Stack:', error.stack);
-      console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
 
       return {
         success: false,
@@ -352,19 +343,17 @@ export const authAPI = {
       };
       console.log('📤 Request Data:', JSON.stringify(requestData, null, 2));
 
-      // Build headers
+      // Build headers with Authorization if token is provided
       const headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       };
-
+      
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
       console.log('📋 Request Headers:', headers);
-      
-      console.log('🌐 Attempting to fetch from:', localUrl);
       
       const response = await fetch(localUrl, {
         method: 'POST',
@@ -373,7 +362,6 @@ export const authAPI = {
       });
 
       console.log('📡 Response received, status:', response.status);
-      console.log('📡 Response OK:', response.ok);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -647,38 +635,11 @@ export const authAPI = {
     // Get Catalog Data
     getCatalog: async (token) => {
       console.log('📋 AuthAPI: getCatalog called');
-      console.log('🔑 Token:', token ? 'Present' : 'Missing');
-
-      if (!token) {
-        console.log('❌ DEBUG: Missing token');
-        return {
-          success: false,
-          error: 'Missing required token',
-          message: 'Failed to get catalog data',
-        };
-      }
-
+      
       try {
-        console.log('🌐 Making request to:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.GET_CATALOG}`);
-
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.GET_CATALOG}`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        console.log('📡 Response Status:', response.status);
-        console.log('📡 Response OK:', response.ok);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.log('❌ Response Error Text:', errorText);
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        const responseData = await response.json();
+        // Use apiClient which handles token refresh automatically
+        const responseData = await apiClient.get(API_ENDPOINTS.GET_CATALOG);
+        
         console.log('✅ AuthAPI: getCatalog success');
         console.log('📊 Response Data:', JSON.stringify(responseData, null, 2));
 
@@ -689,10 +650,7 @@ export const authAPI = {
         };
       } catch (error) {
         console.log('❌ AuthAPI: getCatalog error');
-        console.log('💥 Error Type:', typeof error);
         console.log('💥 Error Message:', error.message);
-        console.log('💥 Error Stack:', error.stack);
-        console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
 
         return {
           success: false,
@@ -707,13 +665,12 @@ export const authAPI = {
     console.log('📄 AuthAPI: uploadIDProof called');
     console.log('📄 File Data:', fileData);
     console.log('📄 Document Type:', documentType);
-    console.log('🔑 Token:', token ? 'Present' : 'Missing');
 
-    if (!fileData || !documentType || !token) {
+    if (!fileData || !documentType) {
       console.log('❌ DEBUG: Missing required parameters');
       return {
         success: false,
-        error: 'Missing required parameters (fileData, documentType, or token)',
+        error: 'Missing required parameters (fileData or documentType)',
         message: 'Failed to upload ID proof',
       };
     }
@@ -738,32 +695,10 @@ export const authAPI = {
       console.log('📤 File Name:', fileData.fileName);
       console.log('📤 Document Type:', documentType);
 
-      // Build headers with Authorization
-      const headers = {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        // Don't set Content-Type for FormData - let fetch set it automatically
-      };
+      // Use apiClient which handles token refresh automatically
+      // apiClient will detect FormData and handle Content-Type properly
+      const responseData = await apiClient.post(API_ENDPOINTS.UPLOAD_ID_PROOF, formData);
 
-      console.log('📋 Request Headers:', headers);
-      console.log('🌐 Making request to:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_ID_PROOF}`);
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_ID_PROOF}`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      console.log('📡 Response Status:', response.status);
-      console.log('📡 Response OK:', response.ok);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('❌ Response Error Text:', errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const responseData = await response.json();
       console.log('✅ AuthAPI: uploadIDProof success');
       console.log('📊 Response Data:', JSON.stringify(responseData, null, 2));
 
@@ -774,10 +709,7 @@ export const authAPI = {
       };
     } catch (error) {
       console.log('❌ AuthAPI: uploadIDProof error');
-      console.log('💥 Error Type:', typeof error);
       console.log('💥 Error Message:', error.message);
-      console.log('💥 Error Stack:', error.stack);
-      console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
 
       return {
         success: false,
@@ -846,12 +778,15 @@ export const authAPI = {
       console.log('📤 Refresh Token (full):', cleanRefreshToken);
       console.log('📤 Refresh Token Length:', cleanRefreshToken.length);
 
-      // Build headers explicitly - ensure Content-Type is set correctly
+      // Build headers explicitly - NO Authorization header needed for refresh token API
       // CRITICAL: Content-Type must be 'application/json' for server to parse body correctly
       const headers = {
         'Content-Type': 'application/json; charset=utf-8',
         'Accept': 'application/json',
+        // Explicitly DO NOT include Authorization header - refresh token API doesn't need it
       };
+      
+      console.log('📋 IMPORTANT: No Authorization header for refresh token API');
       
       console.log('📋 Request Headers:', JSON.stringify(headers, null, 2));
       console.log('📋 Request Body Type:', typeof requestBodyString);
@@ -980,38 +915,11 @@ export const authAPI = {
   // Get User Profile
   getUserProfile: async (token) => {
     console.log('👤 AuthAPI: getUserProfile called');
-    console.log('🔑 Token:', token ? 'Present' : 'Missing');
-
-    if (!token) {
-      console.log('❌ DEBUG: Missing token');
-      return {
-        success: false,
-        error: 'Missing required token',
-        message: 'Failed to get user profile',
-      };
-    }
-
+    
     try {
-      console.log('🌐 Making request to:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.GET_USER_PROFILE}`);
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.GET_USER_PROFILE}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      console.log('📡 Response Status:', response.status);
-      console.log('📡 Response OK:', response.ok);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('❌ Response Error Text:', errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const responseData = await response.json();
+      // Use apiClient which handles token refresh automatically
+      const responseData = await apiClient.get(API_ENDPOINTS.GET_USER_PROFILE);
+      
       console.log('✅ AuthAPI: getUserProfile success');
       console.log('📊 Response Data:', JSON.stringify(responseData, null, 2));
 
@@ -1022,10 +930,7 @@ export const authAPI = {
       };
     } catch (error) {
       console.log('❌ AuthAPI: getUserProfile error');
-      console.log('💥 Error Type:', typeof error);
       console.log('💥 Error Message:', error.message);
-      console.log('💥 Error Stack:', error.stack);
-      console.log('💥 Full Error Object:', JSON.stringify(error, null, 2));
 
       return {
         success: false,

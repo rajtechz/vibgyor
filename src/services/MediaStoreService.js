@@ -64,6 +64,20 @@ class MediaStoreService {
     }
   }
 
+  async getRealVideoPath(contentUri) {
+    if (!contentUri.startsWith('content://')) return contentUri;
+    try {
+      const ext = contentUri.includes('.mp4') ? 'mp4' : 'mov';
+      const realPath = `${RNFS.CachesDirectoryPath}/real_video_${Date.now()}.${ext}`;
+      await RNFS.copyFile(contentUri, realPath);
+      console.log('REAL VIDEO PATH MADE:', realPath);
+      return realPath;
+    } catch (e) {
+      console.warn('Using original URI:', contentUri);
+      return contentUri;
+    }
+  }
+
   // Alternative method using react-native-image-picker
   async fetchImagesWithImagePicker() {
     // Don't return sample images - return empty array so gallery placeholders are shown
@@ -167,7 +181,7 @@ class MediaStoreService {
   }
 
   // iOS PhotoKit implementation (simplified)
-  async fetchIOSImages({ offset = 0, limit = null, filterType = null } = {}) {
+  async fetchIOSImages() {
     try {
       // For iOS, we'll use a different approach
       // This is a simplified version - in production you'd use react-native-photos
@@ -175,10 +189,7 @@ class MediaStoreService {
       const files = await RNFS.readDir(documentsPath);
       
       const images = files
-        .filter(file => {
-          if (filterType === 'video') return false;
-          return this.isImageFile(file.name);
-        })
+        .filter(file => this.isImageFile(file.name))
         .map(file => ({
           id: file.name + '_' + file.ctime,
           uri: 'file://' + file.path,
@@ -188,14 +199,10 @@ class MediaStoreService {
           type: 'image',
           isVideo: false,
         }))
-        .sort((a, b) => b.created - a.created);
-      
-      // Apply offset and limit after sorting
-      const startIndex = Math.max(0, offset);
-      const endIndex = limit !== null ? startIndex + limit : undefined;
-      const result = endIndex !== undefined ? images.slice(startIndex, endIndex) : images.slice(startIndex);
-      
-      return result.length > 0 ? result : this.getSampleImages();
+        .sort((a, b) => b.created - a.created)
+        .slice(0, 50);
+
+      return images.length > 0 ? images : this.getSampleImages();
     } catch (error) {
       console.error('Error fetching iOS images:', error);
       return this.getSampleImages();
@@ -203,33 +210,18 @@ class MediaStoreService {
   }
 
   // Recursively scan directory for images
-  async scanDirectoryRecursively(dirPath, allImages, depth = 0, scanState = { hasLimit: false, limit: Infinity, stop: false }, filterType = null) {
+  async scanDirectoryRecursively(dirPath, allImages, depth = 0) {
     try {
-      // Limit recursion depth to avoid infinite loops and speed up scanning
-      if (depth > 2) { // Reduced from 3 to 2 for faster scanning
-        console.log('⏸️ Max depth reached for:', dirPath);
-        return;
-      }
-
-      // Check if we should stop early
-      if (scanState.stop && scanState.hasLimit && allImages.length >= scanState.limit) return;
-      
-      // Early exit if we have enough items already
-      if (scanState.hasLimit && allImages.length >= scanState.limit) {
-        scanState.stop = true;
+      // Limit recursion depth to avoid infinite loops
+      if (depth > 3) {
+        console.log(' Max depth reached for:', dirPath);
         return;
       }
 
       const files = await RNFS.readDir(dirPath);
-      // Only log if directory has significant files (reduce console spam)
-      if (files.length > 10) {
-        console.log(`📁 Found ${files.length} items in ${dirPath}`);
-      }
+      console.log(`📁 Found ${files.length} items in ${dirPath}`);
       
       for (const file of files) {
-        // Only stop if we have a limit and reached it
-        if (scanState.stop && scanState.hasLimit && allImages.length >= scanState.limit) break;
-        
         if (file.isDirectory()) {
           // Skip system directories that might cause issues
           if (file.path.includes('/Android/data/') && !file.path.includes('/DCIM/') && !file.path.includes('/Pictures/')) {
@@ -237,82 +229,50 @@ class MediaStoreService {
           }
           
           // Recursively scan subdirectories
-          await this.scanDirectoryRecursively(file.path, allImages, depth + 1, scanState, filterType);
+          await this.scanDirectoryRecursively(file.path, allImages, depth + 1);
         } else {
           // Check for both image and video files
           let mediaType = null;
-          
-          // Check video first if no filter or filter is video (videos are less common)
-          if ((filterType === null || filterType === 'video') && this.isVideoFile(file.name)) {
-            mediaType = 'video';
-          } else if ((filterType === null || filterType === 'image') && this.isImageFile(file.name)) {
+          if (this.isImageFile(file.name)) {
             mediaType = 'image';
-          }
-          
-          // Also check file path for video indicators if filename doesn't have extension
-          if (!mediaType && file.path) {
-            const lowerPath = file.path.toLowerCase();
-            // Check if path contains video-related folders or patterns
-            if (lowerPath.includes('/video') || lowerPath.includes('/movies') || 
-                lowerPath.includes('/camera') || lowerPath.includes('/dcim')) {
-              // Try to detect by file size (videos are typically larger) or MIME type if available
-              // For now, skip files without extensions to avoid false positives
-            }
+          } else if (this.isVideoFile(file.name)) {
+            mediaType = 'video';
           }
 
           if (mediaType) {
             try {
               const stat = await RNFS.stat(file.path);
-              
-              // Ensure created timestamp is in milliseconds
-              // stat.ctime and stat.mtime can be in seconds or milliseconds
-              let createdTimestamp = stat.mtime || stat.ctime || Date.now();
-              
-              // Convert to milliseconds if it's in seconds (Unix timestamp < year 2001)
+              // Normalize timestamp to milliseconds
+              let createdTimestamp = stat.ctime;
               if (createdTimestamp < 10000000000) {
-                createdTimestamp = createdTimestamp * 1000;
+                createdTimestamp = createdTimestamp * 1000; // Convert seconds to milliseconds
               }
               
-              // Use mtime (modified time) if it's newer than ctime
-              let mtime = stat.mtime || 0;
-              if (mtime < 10000000000) {
-                mtime = mtime * 1000;
-              }
+              const filePath = file.path.toLowerCase().trim();
+              // Use file path as unique identifier (without random) for better deduplication
+              const uniqueId = `mediastore_${filePath.replace(/[^a-z0-9]/g, '_')}_${createdTimestamp}`;
               
-              // Use the latest timestamp
-              const latestTimestamp = Math.max(createdTimestamp, mtime, Date.now() - 86400000); // Don't use future dates
+              // Check if this file was already added (prevent duplicates from overlapping directories)
+              const isDuplicate = allImages.some(existing => {
+                const existingPath = existing.uri?.replace(/^file:\/\//i, '').toLowerCase().trim();
+                return existingPath === filePath;
+              });
               
-              const mediaItem = {
-                id: `real_${file.name}_${latestTimestamp}_${Math.random()}`,
-                uri: 'file://' + file.path,
-                fileName: file.name,
-                size: stat.size,
-                created: latestTimestamp, // Always in milliseconds
-                type: mediaType,
-                isVideo: mediaType === 'video',
-              };
-
-              // Always add to allImages - we'll apply limit later
-              allImages.push(mediaItem);
-              
-              // Log videos when found for debugging (but less frequently)
-              if (mediaType === 'video' && allImages.filter(i => i.type === 'video').length <= 10) {
-                console.log(`🎥 Found video: ${file.name}`);
-              }
-              
-              // Log periodically to show progress (less frequent to reduce console spam)
-              if (allImages.length % 100 === 0) {
-                const imageCount = allImages.filter(i => i.type === 'image').length;
-                const videoCount = allImages.filter(i => i.type === 'video').length;
-                console.log(`📸 Scanned ${allImages.length} media files (${imageCount} images, ${videoCount} videos)...`);
-              }
-              
-              // Optional: Stop early if limit is set (but scan more for better sorting)
-              // For faster scanning, stop once we have enough items
-              if (scanState.hasLimit && allImages.length >= scanState.limit) {
-                scanState.stop = true; // Stop scanning once we have enough
-                console.log(`⏸️ Reached limit of ${scanState.limit}, stopping scan`);
-                break;
+              if (!isDuplicate) {
+                const mediaItem = {
+                  id: uniqueId,
+                  uri: 'file://' + file.path,
+                  fileName: file.name,
+                  size: stat.size,
+                  created: createdTimestamp, // Now in milliseconds
+                  type: mediaType,
+                  isVideo: mediaType === 'video',
+                };
+                
+                allImages.push(mediaItem);
+                console.log(`📸 Added ${mediaType}: ${file.name}`);
+              } else {
+                console.log(`⚠️ Skipping duplicate: ${file.name}`);
               }
             } catch (statError) {
               console.warn('⚠️ Error getting file stats for:', file.name, statError.message);
@@ -334,32 +294,9 @@ class MediaStoreService {
 
   // Check if file is a video
   isVideoFile(filename) {
-    if (!filename) return false;
-    
-    const lowerName = filename.toLowerCase();
-    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.3gp', '.m4v', '.wmv', '.flv', '.mpeg', '.mpg', '.ts', '.mts', '.m2ts'];
-    
-    // Get extension
-    const lastDot = lowerName.lastIndexOf('.');
-    if (lastDot === -1 || lastDot === lowerName.length - 1) {
-      // No extension found - could be a video file without extension (uncommon but possible)
-      return false;
-    }
-    
-    const ext = lowerName.substring(lastDot);
-    
-    // Check if it's a video extension
-    if (videoExtensions.includes(ext)) {
-      return true;
-    }
-    
-    // Also check for video file patterns in filename (e.g., "VID_20240101_123456")
-    if (lowerName.startsWith('vid_') || lowerName.startsWith('video_') || 
-        lowerName.startsWith('movie_') || lowerName.includes('_video_')) {
-      return true;
-    }
-    
-    return false;
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.3gp', '.m4v', '.wmv', '.flv', '.mpeg', '.mpg'];
+    const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+    return videoExtensions.includes(ext);
   }
 
   // No more sample images - we want real gallery only

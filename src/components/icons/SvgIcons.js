@@ -909,3 +909,29 @@ export const EyeIcon = ({ width = 20, height = 20, color = 'white' }) => (
   </Svg>
 );
 
+// Dropdown Arrow Icon Component
+export const DropdownArrow = ({ width = 10, height = 6, color = "#fff" }) => (
+  <Svg width={width} height={height} viewBox="0 0 10 6" fill="none">
+    <Path
+      d="M5 6L0 0H10L5 6Z"
+      fill={color}
+    />
+  </Svg>
+);
+
+// Camera Fill Icon Component
+export const CameraFillIcon = ({ width = 24, height = 24, color = "#D9D8F3" }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"
+      fill={color}
+    />
+    <Path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M9.77778 4L7.55556 6H4C2.89543 6 2 6.89543 2 8V18C2 19.1046 2.89543 20 4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H16.4444L14.2222 4H9.77778ZM12 17C9.79086 17 8 15.2091 8 13C8 10.7909 9.79086 9 12 9C14.2091 9 16 10.7909 16 13C16 15.2091 14.2091 17 12 17Z"
+      fill={color}
+    />
+  </Svg>
+);
+

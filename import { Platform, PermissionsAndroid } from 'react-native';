@@ -1,0 +1,372 @@
+[1mdiff --git a/src/services/MediaStoreService.js b/src/services/MediaStoreService.js[m
+[1mindex 7955adf..b21c0fa 100644[m
+[1m--- a/src/services/MediaStoreService.js[m
+[1m+++ b/src/services/MediaStoreService.js[m
+[36m@@ -1,65 +1,56 @@[m
+[32m+[m[32m// MediaStoreService.js[m
+ import { Platform, PermissionsAndroid } from 'react-native';[m
+ import RNFS from 'react-native-fs';[m
+[31m-import { launchImageLibrary } from 'react-native-image-picker';[m
+ [m
+ class MediaStoreService {[m
+[31m-  constructor() {[m
+[31m-    this.galleryImages = [];[m
+[31m-    this.permissionsGranted = false;[m
+[31m-  }[m
+[31m-[m
+[31m-  // Request necessary permissions (Instagram style - silent)[m
+   async requestPermissions() {[m
+     // Instagram style - assume permissions are granted and let the system handle it[m
+     this.permissionsGranted = true;[m
+     return true;[m
+   }[m
+ [m
+[31m-  // Fetch images/videos from device gallery with simple pagination and filtering[m
+[32m+[m[32m  // Fetch images from device gallery using MediaStore[m
+   // options: { offset?: number, limit?: number, filterType?: 'image' | 'video' | null }[m
+   async fetchGalleryImages(options = {}) {[m
+[31m-    const { offset = 0, limit = null, filterType = null } = options; // null = no limit, get all images[m
+[32m+[m[32m    const { offset = 0, limit = null, filterType = null } = options;[m
+     // Instagram style - always try to get real images first[m
+     this.permissionsGranted = true;[m
+ [m
+     try {[m
+       if (Platform.OS === 'android') {[m
+[31m-        // Add timeout to prevent hanging - increased timeout and make it more lenient[m
+[31m-        // Return partial results if timeout occurs instead of throwing error[m
+[31m-        try {[m
+[31m-          const images = await Promise.race([[m
+[31m-            this.fetchAndroidImages({ offset, limit, filterType }),[m
+[31m-            new Promise((resolve) => [m
+[31m-              setTimeout(() => {[m
+[31m-                console.warn('⚠️ Media scan timeout - returning partial results');[m
+[31m-                resolve([]); // Return empty array instead of rejecting[m
+[31m-              }, 60000) // Increased to 60 seconds for slower devices[m
+[31m-            )[m
+[31m-          ]);[m
+[31m-          [m
+[31m-          if (images.length > 0) {[m
+[31m-            console.log('✅ Found real Android images:', images.length);[m
+[31m-            return images;[m
+[32m+[m[32m        // Increased timeout to 60 seconds to allow for large galleries[m
+[32m+[m[32m        const images = await Promise.race([[m
+[32m+[m[32m          this.fetchAndroidImages({ limit, filterType }),[m
+[32m+[m[32m          new Promise((resolve) =>[m[41m [m
+[32m+[m[32m            setTimeout(() => {[m
+[32m+[m[32m              console.warn('⚠️ Media scan timeout - returning partial results');[m
+[32m+[m[32m              resolve([]); // Return empty array instead of rejecting (non-fatal)[m
+[32m+[m[32m            }, 60000)[m
+[32m+[m[32m          )[m
+[32m+[m[32m        ]);[m
+[32m+[m[41m        [m
+[32m+[m[32m        if (images.length > 0) {[m
+[32m+[m[32m          console.log('✅ Found real Android images:', images.length);[m
+[32m+[m[32m          // Apply limit if specified (default is already 1000 in fetchAndroidImages)[m
+[32m+[m[32m          if (limit !== null && limit < images.length) {[m
+[32m+[m[32m            return images.slice(0, limit);[m
+           }[m
+[31m-        } catch (scanError) {[m
+[31m-          // If scanning fails, log but don't crash - return empty array[m
+[31m-          console.warn('⚠️ Media scan error (non-fatal):', scanError.message);[m
+[31m-          return [];[m
+[32m+[m[32m          return images;[m
+         }[m
+       } else {[m
+[31m-        const images = await this.fetchIOSImages({ offset, limit, filterType });[m
+[32m+[m[32m        const images = await this.fetchIOSImages();[m
+         if (images.length > 0) {[m
+           console.log('✅ Found real iOS images:', images.length);[m
+           return images;[m
+         }[m
+       }[m
+       [m
+[31m-      // If no real images found, return empty array (don't crash)[m
+[32m+[m[32m      // If no real images found, return empty array[m
+       console.log('⚠️ No real images found from MediaStoreService (will use CameraRoll)');[m
+       return [];[m
+     } catch (error) {[m
+[31m-      // Catch-all error handler - return empty array instead of crashing[m
+       console.warn('⚠️ Error fetching gallery images (non-fatal):', error.message);[m
+[32m+[m[32m      // Return empty array instead of crashing[m
+       return [];[m
+     }[m
+   }[m
+[36m@@ -71,8 +62,8 @@[m [mclass MediaStoreService {[m
+     return [];[m
+   }[m
+ [m
+[31m-  // Android MediaStore implementation - fetch real device media with pagination[m
+[31m-  async fetchAndroidImages({ offset = 0, limit = null, filterType = null } = {}) {[m
+[32m+[m[32m  // Android MediaStore implementation - fetch real device photos[m
+[32m+[m[32m  async fetchAndroidImages({ limit = null, filterType = null } = {}) {[m
+     try {[m
+       console.log('🔍 Starting Android media scan...');[m
+       [m
+[36m@@ -80,53 +71,41 @@[m [mclass MediaStoreService {[m
+       const externalPath = RNFS.ExternalStorageDirectoryPath;[m
+       console.log('📱 External storage path:', externalPath);[m
+       [m
+[31m-      // Prioritize most common directories first for faster scanning[m
+[31m-      // Most users have photos in DCIM/Camera, so scan that first[m
+[31m-      // Also prioritize video-specific folders[m
+[31m-      // Limit to most important directories to avoid timeout[m
+[32m+[m[32m      // Prioritize main photo directories first for faster results[m
+       const directories = [[m
+[31m-        RNFS.DCIMDirectoryPath + '/Camera', // Most common - scan first (photos + videos)[m
+[31m-        RNFS.DCIMDirectoryPath, // Camera folder parent (may contain videos)[m
+[31m-        externalPath ? externalPath + '/DCIM/Camera' : undefined, // Alternative camera path[m
+[32m+[m[32m        RNFS.DCIMDirectoryPath,[m
+[32m+[m[32m        RNFS.PicturesDirectoryPath,[m
+[32m+[m[32m        externalPath ? externalPath + '/DCIM/Camera' : undefined,[m
+         externalPath ? externalPath + '/DCIM' : undefined,[m
+[31m-        externalPath ? externalPath + '/Movies' : undefined, // Primary videos folder[m
+[31m-        RNFS.PicturesDirectoryPath, // Pictures folder (may contain videos too)[m
+         externalPath ? externalPath + '/Pictures' : undefined,[m
+[31m-        externalPath ? externalPath + '/Videos' : undefined, // Alternative videos folder[m
+[31m-        externalPath ? externalPath + '/Download' : undefined,[m
+         externalPath ? externalPath + '/Screenshots' : undefined,[m
+[31m-        // Skip social media folders by default to avoid timeout (can be enabled if needed)[m
+[31m-        // externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Video' : undefined,[m
+[31m-        // externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Images' : undefined,[m
+[32m+[m[32m        externalPath ? externalPath + '/Download' : undefined,[m
+[32m+[m[32m        externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Images' : undefined,[m
+[32m+[m[32m        externalPath ? externalPath + '/Instagram' : undefined,[m
+[32m+[m[32m        externalPath ? externalPath + '/Telegram' : undefined,[m
+[32m+[m[32m        externalPath ? externalPath + '/Snapchat' : undefined,[m
+[32m+[m[32m        externalPath ? externalPath + '/WhatsApp/Media/WhatsApp Video' : undefined,[m
+[32m+[m[32m        externalPath ? externalPath + '/Movies' : undefined,[m
+       ].filter(Boolean);[m
+ [m
+       const allImages = [];[m
+[31m-      const scanState = { hasLimit: limit !== null, limit: limit || Infinity, stop: false };[m
+       let totalScanned = 0;[m
+[32m+[m[32m      const MAX_IMAGES = limit || 1000; // Use provided limit or default to 1000[m
+ [m
+[31m-      // Scan directories with early stopping if limit reached[m
+       for (const dir of directories) {[m
+[31m-        // Stop early if we have enough items and limit is set[m
+[31m-        if (scanState.hasLimit && allImages.length >= scanState.limit) {[m
+[31m-          console.log(`⏸️ Reached limit of ${scanState.limit}, stopping scan`);[m
+[31m-          scanState.stop = true;[m
+[32m+[m[32m        // Early exit if we've collected enough images[m
+[32m+[m[32m        if (allImages.length >= MAX_IMAGES) {[m
+[32m+[m[32m          console.log(`⏹️ Reached image limit (${MAX_IMAGES}), stopping scan`);[m
+           break;[m
+         }[m
+[31m-        if (scanState.stop && scanState.hasLimit) break;[m
+[31m-        [m
+[32m+[m
+         try {[m
+           console.log('📂 Scanning directory:', dir);[m
+           const dirExists = await RNFS.exists(dir);[m
+           if (dirExists) {[m
+[31m-            await this.scanDirectoryRecursively(dir, allImages, 0, scanState, filterType);[m
+[32m+[m[32m            await this.scanDirectoryRecursively(dir, allImages, 0, MAX_IMAGES, filterType);[m
+             totalScanned++;[m
+[31m-            console.log(`✅ Directory ${dir} scanned - Found ${allImages.length} items so far`);[m
+[31m-            [m
+[31m-            // Stop early if we have enough[m
+[31m-            if (scanState.hasLimit && allImages.length >= scanState.limit) {[m
+[31m-              console.log(`⏸️ Reached limit after scanning ${dir}`);[m
+[31m-              break;[m
+[31m-            }[m
+[32m+[m[32m            console.log(`✅ Directory ${dir} scanned successfully (${allImages.length} images found so far)`);[m
+           } else {[m
+             console.log(`❌ Directory ${dir} does not exist`);[m
+           }[m
+[36m@@ -139,26 +118,9 @@[m [mclass MediaStoreService {[m
+       allImages.sort((a, b) => b.created - a.created);[m
+ [m
+       console.log(`🎉 SCAN COMPLETE! Found ${allImages.length} media files from ${totalScanned} directories`);[m
+[31m-      const imageCount = allImages.filter(i => i.type === 'image').length;[m
+[31m-      const videoCount = allImages.filter(i => i.type === 'video').length;[m
+[31m-      console.log(`📱 Media types: ${imageCount} photos, ${videoCount} videos`);[m
+[31m-      [m
+[31m-      // Debug: Log first few videos found[m
+[31m-      const videos = allImages.filter(i => i.type === 'video').slice(0, 5);[m
+[31m-      if (videos.length > 0) {[m
+[31m-        console.log(`🎥 Sample videos found:`);[m
+[31m-        videos.forEach(v => console.log(`   - ${v.fileName || v.uri}`));[m
+[31m-      } else {[m
+[31m-        console.log(`⚠️ WARNING: No videos found! Check permissions and video file extensions.`);[m
+[31m-      }[m
+[32m+[m[32m      console.log(`📱 Media types: ${allImages.filter(i => i.type === 'image').length} photos, ${allImages.filter(i => i.type === 'video').length} videos`);[m
+       [m
+[31m-      // Apply offset and limit after scanning all images[m
+[31m-      const startIndex = Math.max(0, offset);[m
+[31m-      const endIndex = limit !== null ? startIndex + limit : undefined;[m
+[31m-      const result = endIndex !== undefined ? allImages.slice(startIndex, endIndex) : allImages.slice(startIndex);[m
+[31m-      [m
+[31m-      console.log(`📊 Returning ${result.length} media items (offset: ${offset}, limit: ${limit || 'unlimited'})`);[m
+[31m-      return result;[m
+[32m+[m[32m      return allImages;[m
+ [m
+     } catch (error) {[m
+       console.error('❌ Error fetching Android images:', error);[m
+[36m@@ -167,7 +129,7 @@[m [mclass MediaStoreService {[m
+   }[m
+ [m
+   // iOS PhotoKit implementation (simplified)[m
+[31m-  async fetchIOSImages({ offset = 0, limit = null, filterType = null } = {}) {[m
+[32m+[m[32m  async fetchIOSImages() {[m
+     try {[m
+       // For iOS, we'll use a different approach[m
+       // This is a simplified version - in production you'd use react-native-photos[m
+[36m@@ -175,48 +137,44 @@[m [mclass MediaStoreService {[m
+       const files = await RNFS.readDir(documentsPath);[m
+       [m
+       const images = files[m
+[31m-        .filter(file => {[m
+[31m-          if (filterType === 'video') return false;[m
+[31m-          return this.isImageFile(file.name);[m
+[32m+[m[32m        .filter(file => this.isImageFile(file.name))[m
+[32m+[m[32m        .map(file => {[m
+[32m+[m[32m          // Ensure created is in milliseconds[m
+[32m+[m[32m          let created = file.ctime;[m
+[32m+[m[32m          if (created < 10000000000) {[m
+[32m+[m[32m            created = created * 1000;[m
+[32m+[m[32m          }[m
+[32m+[m[32m          return {[m
+[32m+[m[32m            id: file.name + '_' + created,[m
+[32m+[m[32m            uri: 'file://' + file.path,[m
+[32m+[m[32m            fileName: file.name,[m
+[32m+[m[32m            size: file.size,[m
+[32m+[m[32m            created: created,[m
+[32m+[m[32m            type: 'image',[m
+[32m+[m[32m            isVideo: false,[m
+[32m+[m[32m          };[m
+         })[m
+[31m-        .map(file => ({[m
+[31m-          id: file.name + '_' + file.ctime,[m
+[31m-          uri: 'file://' + file.path,[m
+[31m-          fileName: file.name,[m
+[31m-          size: file.size,[m
+[31m-          created: file.ctime,[m
+[31m-          type: 'image',[m
+[31m-          isVideo: false,[m
+[31m-        }))[m
+[31m-        .sort((a, b) => b.created - a.created);[m
+[31m-      [m
+[31m-      // Apply offset and limit after sorting[m
+[31m-      const startIndex = Math.max(0, offset);[m
+[31m-      const endIndex = limit !== null ? startIndex + limit : undefined;[m
+[31m-      const result = endIndex !== undefined ? images.slice(startIndex, endIndex) : images.slice(startIndex);[m
+[31m-      [m
+[31m-      return result.length > 0 ? result : this.getSampleImages();[m
+[32m+[m[32m        .sort((a, b) => b.created - a.created)[m
+[32m+[m[32m        .slice(0, 50);[m
+[32m+[m
+[32m+[m[32m      return images.length > 0 ? images : [];[m
+     } catch (error) {[m
+       console.error('Error fetching iOS images:', error);[m
+[31m-      return this.getSampleImages();[m
+[32m+[m[32m      return [];[m
+     }[m
+   }[m
+ [m
+   // Recursively scan directory for images[m
+[31m-  async scanDirectoryRecursively(dirPath, allImages, depth = 0, scanState = { hasLimit: false, limit: Infinity, stop: false }, filterType = null) {[m
+[32m+[m[32m  async scanDirectoryRecursively(dirPath, allImages, depth = 0, maxImages = 1000, filterType = null) {[m
+     try {[m
+[31m-      // Limit recursion depth to avoid infinite loops and speed up scanning[m
+[31m-      if (depth > 2) { // Reduced from 3 to 2 for faster scanning[m
+[31m-        console.log('⏸️ Max depth reached for:', dirPath);[m
+[32m+[m[32m      // Limit recursion depth to avoid infinite loops[m
+[32m+[m[32m      if (depth > 3) {[m
+[32m+[m[32m        console.log('⏹️ Max depth reached for:', dirPath);[m
+         return;[m
+       }[m
+ [m
+[31m-      // Check if we should stop early[m
+[31m-      if (scanState.stop && scanState.hasLimit && allImages.length >= scanState.limit) return;[m
+[31m-      [m
+[31m-      // Early exit if we have enough items already[m
+[31m-      if (scanState.hasLimit && allImages.length >= scanState.limit) {[m
+[31m-        scanState.stop = true;[m
+[32m+[m[32m      // Early exit if we've collected enough images[m
+[32m+[m[32m      if (allImages.length >= maxImages) {[m
+         return;[m
+       }[m
+ [m
+[36m@@ -227,9 +185,11 @@[m [mclass MediaStoreService {[m
+       }[m
+       [m
+       for (const file of files) {[m
+[31m-        // Only stop if we have a limit and reached it[m
+[31m-        if (scanState.stop && scanState.hasLimit && allImages.length >= scanState.limit) break;[m
+[31m-        [m
+[32m+[m[32m        // Early exit check inside loop[m
+[32m+[m[32m        if (allImages.length >= maxImages) {[m
+[32m+[m[32m          return;[m
+[32m+[m[32m        }[m
+[32m+[m
+         if (file.isDirectory()) {[m
+           // Skip system directories that might cause issues[m
+           if (file.path.includes('/Android/data/') && !file.path.includes('/DCIM/') && !file.path.includes('/Pictures/')) {[m
+[36m@@ -237,26 +197,31 @@[m [mclass MediaStoreService {[m
+           }[m
+           [m
+           // Recursively scan subdirectories[m
+[31m-          await this.scanDirectoryRecursively(file.path, allImages, depth + 1, scanState, filterType);[m
+[32m+[m[32m          await this.scanDirectoryRecursively(file.path, allImages, depth + 1, maxImages, filterType);[m
+         } else {[m
+[31m-          // Check for both image and video files[m
+[32m+[m[32m          // Skip trashed files and system files[m
+[32m+[m[32m          if (file.name.startsWith('.trashed') ||[m[41m [m
+[32m+[m[32m              file.path.includes('/.trashed') ||[m
+[32m+[m[32m              file.path.includes('/.thumbnails') ||[m
+[32m+[m[32m              file.name.includes('.trashed') ||[m
+[32m+[m[32m              file.name.includes('trashed-') ||[m
+[32m+[m[32m              file.path.includes('/Android/data/') && !file.path.includes('/DCIM/') && !file.path.includes('/Pictures/')) {[m
+[32m+[m[32m            return; // Skip this file[m
+[32m+[m[32m          }[m
+[32m+[m[41m          [m
+[32m+[m[32m          // Check for both image and video files based on filterType[m
+           let mediaType = null;[m
+           [m
+[31m-          // Check video first if no filter or filter is video (videos are less common)[m
+[31m-          if ((filterType === null || filterType === 'video') && this.isVideoFile(file.name)) {[m
+[31m-            mediaType = 'video';[m
+[31m-          } else if ((filterType === null || filterType === 'image') && this.isImageFile(file.name)) {[m
+[31m-            mediaType = 'image';[m
+[32m+[m[32m          // Apply filter if specified[m
+[32m+[m[32m          if (filterType === 'image' || filterType === null) {[m
+[32m+[m[32m            if (this.isImageFile(file.name)) {[m
+[32m+[m[32m              mediaType = 'image';[m
+[32m+[m[32m            }[m
+           }[m
+           [m
+[31m-          // Also check file path for video indicators if filename doesn't have extension[m
+[31m-          if (!mediaType && file.path) {[m
+[31m-            const lowerPath = file.path.toLowerCase();[m
+[31m-            // Check if path contains video-related folders or patterns[m
+[31m-            if (lowerPath.includes('/video') || lowerPath.includes('/movies') || [m
+[31m-                lowerPath.includes('/camera') || lowerPath.includes('/dcim')) {[m
+[31m-              // Try to detect by file size (videos are typically larger) or MIME type if available[m
+[31m-              // For now, skip files without extensions to avoid false positives[m
+[32m+[m[32m          if ((filterType === 'video' || filterType === null) && !mediaType) {[m
+[32m+[m[32m            if (this.isVideoFile(file.name)) {[m
+[32m+[m[32m              mediaType = 'video';[m
+             }[m
+           }[m
+ [m
+[36m@@ -279,8 +244,8 @@[m [mclass MediaStoreService {[m
+                 mtime = mtime * 1000;[m
+               }[m
+               [m
+[31m-              // Use the latest timestamp[m
+[31m-              const latestTimestamp = Math.max(createdTimestamp, mtime, Date.now() - 86400000); // Don't use future dates[m
+[32m+[m[32m              // Use the latest timestamp (but don't use future dates)[m
+[32m+[m[32m              const latestTimestamp = Math.max(createdTimestamp, mtime, Date.now() - 86400000);[m
+               [m
+               const mediaItem = {[m
+                 id: `real_${file.name}_${latestTimestamp}_${Math.random()}`,[m
+[36m@@ -289,31 +254,21 @@[m [mclass MediaStoreService {[m
+                 size: stat.size,[m
+                 created: latestTimestamp, // Always in milliseconds[m
+                 type: mediaType,[m
+[31m-                isVideo: mediaType === 'video',[m
+[32m+[m[32m                isVideo: mediaType === 'video', // Explicitly set isVideo flag[m
+               };[m
+[31m-[m
+[31m-              // Always add to all

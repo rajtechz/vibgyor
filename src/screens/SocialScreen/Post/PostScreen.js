@@ -220,6 +220,82 @@ const formatDuration = (seconds) => {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 };
 
+// Normalize URI to extract file path for better deduplication
+const normalizeUriPath = (uri) => {
+  if (!uri) return '';
+  
+  // For content:// URIs, we can't extract file path, so return empty
+  // We'll rely on filename + timestamp matching for those
+  if (uri.startsWith('content://') || uri.startsWith('ph://')) {
+    return '';
+  }
+  
+  // Remove protocol prefixes and normalize
+  let path = uri
+    .replace(/^file:\/\//, '')
+    .replace(/^https?:\/\//, '');
+  
+  return path.toLowerCase().trim();
+};
+
+// Extract filename from URI or item
+const extractFilename = (uri, fileName) => {
+  // Prefer explicit fileName property
+  if (fileName) {
+    // Remove path and get just the filename
+    const cleanName = fileName.split('/').pop().split('\\').pop();
+    return cleanName.toLowerCase().trim();
+  }
+  
+  if (!uri) return '';
+  
+  // For content:// URIs, we can't extract filename from path
+  if (uri.startsWith('content://') || uri.startsWith('ph://')) {
+    return '';
+  }
+  
+  // Extract filename from file path
+  const path = normalizeUriPath(uri);
+  if (!path) return '';
+  
+  const parts = path.split('/');
+  const filename = parts[parts.length - 1] || '';
+  // Remove query params if any
+  return filename.split('?')[0].toLowerCase().trim();
+};
+
+// Check if two items represent the same file
+const isSameFile = (item1, item2) => {
+  // 1. Direct URI match (exact same URI)
+  if (item1.uri && item2.uri && item1.uri === item2.uri) return true;
+  if (item1.thumbnailUri && item2.uri && item1.thumbnailUri === item2.uri) return true;
+  if (item1.uri && item2.thumbnailUri && item1.uri === item2.thumbnailUri) return true;
+  if (item1.thumbnailUri && item2.thumbnailUri && item1.thumbnailUri === item2.thumbnailUri) return true;
+  
+  // 2. Normalized file path match (for file:// URIs)
+  const path1 = normalizeUriPath(item1.uri || '');
+  const path2 = normalizeUriPath(item2.uri || '');
+  
+  if (path1 && path2 && path1 === path2 && path1.length > 0) {
+    return true;
+  }
+  
+  // 3. Filename + timestamp match (for content:// URIs or different URI formats)
+  const filename1 = extractFilename(item1.uri, item1.fileName);
+  const filename2 = extractFilename(item2.uri, item2.fileName);
+  
+  if (filename1 && filename2 && filename1 === filename2 && filename1.length > 0) {
+    const timeDiff = Math.abs((item1.created || 0) - (item2.created || 0));
+    // If same filename and created within 2 seconds, likely same file
+    // Reduced tolerance to 2 seconds for more accurate matching
+    if (timeDiff < 2000) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
 
 // Check Icon (for selected items)
 const CheckIcon = ({ width = 16, height = 16, color = 'white' }) => (
@@ -324,7 +400,7 @@ function PostScreen() {
   }, [dispatch]);
 
   // Load gallery images from device - Combining MediaStoreService + CameraRoll
-  const loadGalleryImages = useCallback(async () => {
+  const loadGalleryImages = useCallback(async () => {    
     dispatch(setLoading(true));
     try {
       // Check permissions first
@@ -378,7 +454,9 @@ function PostScreen() {
       console.log(`📸 CameraRoll: ${cameraRollItems.length} items`);
 
       // Combine both sources - prioritize MediaStoreService for videos
+      // Use normalized URI path as map key for better deduplication
       const combinedMediaMap = new Map();
+      let duplicateCount = 0;
 
       // First, add MediaStoreService items (better video URIs)
       mediaStoreItems.forEach((item, index) => {
@@ -387,6 +465,10 @@ function PostScreen() {
         if (item.created) {
           if (typeof item.created === 'number') {
             createdTimestamp = item.created;
+            // Ensure it's in milliseconds
+            if (createdTimestamp < 10000000000) {
+              createdTimestamp = createdTimestamp * 1000;
+            }
           } else if (item.created instanceof Date) {
             createdTimestamp = item.created.getTime();
           } else if (typeof item.created === 'object' && Object.keys(item.created).length > 0) {
@@ -395,12 +477,31 @@ function PostScreen() {
           }
         }
         
-        const id = item.id || `mediastore_${index}_${createdTimestamp}`;
-        const isVideo = item.isVideo || item.type === 'video';
+        // Generate a unique key based on normalized file path for better deduplication
+        const normalizedPath = normalizeUriPath(item.uri || '');
+        const mapKey = normalizedPath || item.id || `mediastore_${index}_${createdTimestamp}`;
+        const id = item.id || mapKey;
+        // Enhanced video detection - use extension-based detection (more reliable)
+        // Only check explicit flags and file extensions, NOT keywords (to avoid false positives)
+        const hasExplicitVideoFlag = item.isVideo === true || item.type === 'video';
+        const uriIsVideo = item.uri && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri);
+        const fileNameIsVideo = item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName);
+        const isVideo = hasExplicitVideoFlag || uriIsVideo || fileNameIsVideo;
+        
+        // Debug log for videos from MediaStoreService
+        if (isVideo) {
+          console.log(`🎥 MediaStoreService item is video:`, {
+            id: id,
+            uri: item.uri?.substring(0, 80),
+            type: item.type,
+            isVideo: item.isVideo,
+            fileName: item.fileName
+          });
+        }
         
         // Ensure URI is properly formatted for videos
         let videoUri = item.uri;
-        let thumbnailUri = item.uri;
+        let thumbnailUri = item.thumbnailUri || item.uri;
         
         if (isVideo && videoUri) {
           // Format video URI for Android
@@ -411,48 +512,120 @@ function PostScreen() {
               videoUri = `content://${videoUri}`;
             }
           }
-          // For MediaStoreService, thumbnail might be the same or separate
-          thumbnailUri = item.thumbnailUri || item.uri;
-          if (thumbnailUri && !thumbnailUri.startsWith('file://') && !thumbnailUri.startsWith('content://') && !thumbnailUri.startsWith('http')) {
-            if (thumbnailUri.startsWith('/')) {
-              thumbnailUri = `file://${thumbnailUri}`;
+          
+          // For MediaStoreService videos, we need to ensure thumbnailUri is set
+          // If thumbnailUri is not provided or same as videoUri, use videoUri as thumbnail
+          // (React Native Image can handle video URIs as thumbnails)
+          if (!item.thumbnailUri || item.thumbnailUri === item.uri) {
+            thumbnailUri = videoUri; // Use video URI as thumbnail (Image component can handle it)
+          } else {
+            // Format thumbnail URI if provided separately
+            thumbnailUri = item.thumbnailUri;
+            if (!thumbnailUri.startsWith('file://') && !thumbnailUri.startsWith('content://') && !thumbnailUri.startsWith('http')) {
+              if (thumbnailUri.startsWith('/')) {
+                thumbnailUri = `file://${thumbnailUri}`;
+              } else {
+                thumbnailUri = `file://${thumbnailUri}`;
+              }
             }
           }
         } else if (videoUri && !videoUri.startsWith('file://') && !videoUri.startsWith('content://') && !videoUri.startsWith('http')) {
           if (videoUri.startsWith('/')) {
             videoUri = `file://${videoUri}`;
           }
+          thumbnailUri = videoUri;
         }
         
-        // Check if item already exists - prefer newer one
-        const existing = combinedMediaMap.get(id);
-        if (existing) {
-          // If existing item is older, update it with newer timestamp
-          if (createdTimestamp > (existing.created || 0)) {
-            existing.created = createdTimestamp;
-            existing.uri = videoUri || item.uri;
-            existing.thumbnailUri = thumbnailUri || item.uri;
-            if (isVideo && (!existing.isVideo)) {
-              existing.isVideo = isVideo;
-              existing.type = 'video';
+        // Check if item already exists - use improved deduplication
+        // First check by normalized path key (fastest)
+        let existing = null;
+        let existingKey = null;
+        
+        if (normalizedPath && combinedMediaMap.has(mapKey)) {
+          existing = combinedMediaMap.get(mapKey);
+          existingKey = mapKey;
+        } else {
+          // Create a temporary item object for comparison
+          const tempItem = {
+            uri: videoUri || item.uri,
+            thumbnailUri: thumbnailUri,
+            fileName: item.fileName,
+            created: createdTimestamp
+          };
+          
+          // Check by improved file matching (handles different URI formats)
+          for (const [key, value] of combinedMediaMap.entries()) {
+            if (isSameFile(tempItem, value)) {
+              existing = value;
+              existingKey = key;
+              break;
             }
           }
+          
+          // If not found by file matching, check by ID (fallback)
+          if (!existing && combinedMediaMap.has(id)) {
+            existing = combinedMediaMap.get(id);
+            existingKey = id;
+          }
+        }
+        
+        if (existing) {
+          duplicateCount++;
+          // Always prefer newer timestamp for sorting
+          if (createdTimestamp > (existing.created || 0)) {
+            existing.created = createdTimestamp;
+          }
+          
+          // Ensure video flags are set correctly - CRITICAL: Check if this is a video first
+          if (isVideo) {
+            existing.isVideo = true;
+            existing.type = 'video';
+            
+            // For videos, prioritize actual video URI (not thumbnail)
+            // Use the videoUri (which is the actual video file from MediaStoreService)
+            if (videoUri) {
+              existing.uri = videoUri; // Always use actual video URI
+            }
+            
+            // Set thumbnailUri separately - prefer provided thumbnail, fallback to video URI
+            if (thumbnailUri && thumbnailUri !== videoUri) {
+              existing.thumbnailUri = thumbnailUri;
+            } else if (!existing.thumbnailUri || existing.thumbnailUri === existing.uri) {
+              existing.thumbnailUri = item.thumbnailUri || videoUri || existing.uri;
+            }
+          } else {
+            // Update URI if better one is available (for non-videos)
+            if (videoUri && (!existing.uri || existing.uri.length < videoUri.length)) {
+              existing.uri = videoUri;
+            }
+          }
+          
+          // Update duration if missing
+          if (item.duration && !existing.duration) {
+            existing.duration = item.duration;
+          }
         } else {
-          combinedMediaMap.set(id, {
+          // Use normalized path as key if available, otherwise use ID
+          const finalKey = normalizedPath || id;
+          combinedMediaMap.set(finalKey, {
             id,
             uri: videoUri || item.uri,
             thumbnailUri: thumbnailUri || item.uri,
-            type: item.type || (isVideo ? 'video' : 'image'),
-            isVideo: isVideo,
+            // CRITICAL: Explicitly set type - don't rely on item.type which might be wrong
+            type: isVideo ? 'video' : 'image',
+            isVideo: isVideo, // Explicitly set boolean
             duration: item.duration || null,
             isAddButton: false,
-            created: createdTimestamp, // Always a number
+            created: createdTimestamp, // Always a number in milliseconds
             source: 'mediastore', // Track source
+            fileName: item.fileName, // Preserve fileName for debugging
           });
         }
       });
 
       // Then, merge CameraRoll items (add missing or update metadata)
+      // Track duplicates from CameraRoll separately for logging
+      let cameraRollDuplicateCount = 0;
       cameraRollItems.forEach((edge, index) => {
         const node = edge.node;
         
@@ -471,8 +644,15 @@ function PostScreen() {
         if (isVideo) {
           // For videos, try video.uri first (actual video file), then image.uri (thumbnail), then node.uri
           mediaUri = node.video?.uri || node.image?.uri || node.uri || '';
-          // Thumbnail is usually in image.uri for videos
-          thumbnailUri = node.image?.uri || mediaUri;
+          // For CameraRoll videos, image.uri is usually the thumbnail
+          // If image.uri exists and is different from video.uri, use it as thumbnail
+          // Otherwise, use mediaUri as thumbnail (Image can handle video URIs)
+          if (node.image?.uri && node.image.uri !== mediaUri && node.image.uri !== node.video?.uri) {
+            thumbnailUri = node.image.uri;
+          } else {
+            // Use video URI as thumbnail if no separate thumbnail available
+            thumbnailUri = mediaUri;
+          }
         } else {
           mediaUri = node.image?.uri || node.uri || '';
           thumbnailUri = mediaUri;
@@ -521,91 +701,295 @@ function PostScreen() {
           }
         }
         
+        // Generate ID and map key - use normalized path for better deduplication
+        const normalizedPath = normalizeUriPath(mediaUri || '');
         const id = mediaUri || `cameraroll_${index}_${createdTimestamp}`;
+        const mapKey = normalizedPath || id;
         
-        // Only add if not already in map, or if it's a video and we have better URI
-        if (!combinedMediaMap.has(id)) {
-          combinedMediaMap.set(id, {
-            id,
+        // Check if item already exists - use improved deduplication
+        let existing = null;
+        let existingKey = null;
+        
+        // First check by normalized path key (fastest)
+        if (normalizedPath && combinedMediaMap.has(mapKey)) {
+          existing = combinedMediaMap.get(mapKey);
+          existingKey = mapKey;
+        } else {
+          // Create a temporary item object for comparison
+          const tempItem = {
             uri: mediaUri,
-            thumbnailUri: isVideo ? thumbnailUri : mediaUri,
-            type: isVideo ? 'video' : 'image',
-            isVideo: isVideo,
-            duration: duration,
-            isAddButton: false,
-            created: createdTimestamp, // Always a number
-            source: 'cameraroll',
-          });
-    } else {
-          // Update existing item with better metadata if available
-          const existing = combinedMediaMap.get(id);
+            thumbnailUri: thumbnailUri,
+            fileName: node.image?.filename || node.filename,
+            created: createdTimestamp
+          };
           
-          // Always prefer newer timestamp
+          // Check by improved file matching (handles different URI formats)
+          for (const [key, value] of combinedMediaMap.entries()) {
+            if (isSameFile(tempItem, value)) {
+              existing = value;
+              existingKey = key;
+              break;
+            }
+          }
+          
+          // If not found by file matching, check by ID (fallback)
+          if (!existing && combinedMediaMap.has(id)) {
+            existing = combinedMediaMap.get(id);
+            existingKey = id;
+          }
+        }
+        
+        if (existing) {
+          cameraRollDuplicateCount++;
+          // Always prefer newer timestamp for latest items first
           if (createdTimestamp > (existing.created || 0)) {
             existing.created = createdTimestamp;
           }
           
-          if (isVideo && (!existing.uri || existing.uri.length < mediaUri.length)) {
-            existing.uri = mediaUri;
-            existing.thumbnailUri = thumbnailUri || node.image?.uri || mediaUri;
+          // Ensure video flags are set correctly - CRITICAL for video playback
+          if (isVideo) {
+            existing.isVideo = true;
+            existing.type = 'video';
+            
+            // IMPORTANT: Always use actual video URI, not thumbnail URI
+            // For CameraRoll videos, node.video.uri is the actual video file
+            // node.image.uri is usually the thumbnail/poster
+            if (node.video?.uri) {
+              // CRITICAL: Use video.uri as the main URI (actual video file for playback)
+              existing.uri = node.video.uri;
+              
+              // Set thumbnailUri separately - use image.uri if available and different
+              if (node.image?.uri && node.image.uri !== node.video.uri) {
+                existing.thumbnailUri = node.image.uri;
+              } else {
+                // Fallback: use video URI as thumbnail (Image component can handle it)
+                existing.thumbnailUri = existing.uri || node.video.uri;
+              }
+            } else if (mediaUri) {
+              // If no video.uri, use mediaUri but ensure we're not using thumbnail
+              // Check if existing URI is a thumbnail (usually shorter or different path)
+              const existingIsThumbnail = existing.uri && 
+                (existing.uri.includes('thumbnail') || 
+                 existing.uri.length < mediaUri.length ||
+                 (existing.thumbnailUri && existing.uri === existing.thumbnailUri));
+              
+              if (existingIsThumbnail || !existing.uri) {
+                existing.uri = mediaUri;
+              }
+              
+              // Set thumbnail separately
+              if (node.image?.uri && node.image.uri !== mediaUri && node.image.uri !== existing.uri) {
+                existing.thumbnailUri = node.image.uri;
+              } else if (!existing.thumbnailUri || existing.thumbnailUri === existing.uri) {
+                existing.thumbnailUri = mediaUri;
+              }
+            }
+            
+            // Final fallback: ensure thumbnailUri is always set
+            if (!existing.thumbnailUri) {
+              existing.thumbnailUri = node.image?.uri || existing.uri || mediaUri;
+            }
+          } else {
+            // For non-videos, update URI if better one is available
+            if (mediaUri && (!existing.uri || existing.uri.length < mediaUri.length)) {
+              existing.uri = mediaUri;
+            }
           }
+          
+          // Update duration if missing
           if (duration && !existing.duration) {
             existing.duration = duration;
           }
+          
+          // Update source if this is better (prefer cameraroll for metadata)
+          if (existing.source === 'mediastore') {
+            existing.source = 'both'; // Mark as from both sources
+          }
+        } else {
+          // Add new item
+          // IMPORTANT: For videos, use node.video.uri as main URI (actual video), node.image.uri as thumbnail
+          let finalVideoUri = mediaUri;
+          let finalThumbnailUri = thumbnailUri;
+          
+          if (isVideo && node.video?.uri) {
+            // Use video.uri as the actual video file URI
+            finalVideoUri = node.video.uri;
+            // Use image.uri as thumbnail if available and different
+            if (node.image?.uri && node.image.uri !== node.video.uri) {
+              finalThumbnailUri = node.image.uri;
+            } else {
+              finalThumbnailUri = finalVideoUri;
+            }
+          }
+          
+          // Use normalized path as key if available, otherwise use ID
+          const finalKey = normalizedPath || id;
+          combinedMediaMap.set(finalKey, {
+            id,
+            uri: finalVideoUri, // Always use actual video URI for videos
+            thumbnailUri: isVideo ? finalThumbnailUri : mediaUri,
+            // CRITICAL: Explicitly set type - don't rely on node.type which might be wrong
+            type: isVideo ? 'video' : 'image',
+            isVideo: isVideo, // Explicitly set boolean
+            duration: duration,
+            isAddButton: false,
+            created: createdTimestamp, // Always a number in milliseconds
+            source: 'cameraroll',
+            fileName: node.image?.filename || node.filename, // Preserve fileName for debugging
+          });
         }
       });
 
       // Convert map to array and sort by creation time (newest first)
       // Ensure all items have valid timestamps, and sort properly
       const mediaItems = Array.from(combinedMediaMap.values())
+        .filter(item => {
+          // Filter out items without valid URIs
+          if (!item.uri || item.uri.trim().length === 0) {
+            return false;
+          }
+          
+          // Filter out trashed files and invalid paths
+          const uri = item.uri.toLowerCase();
+          if (uri.includes('.trashed') || 
+              uri.includes('/.thumbnails') ||
+              uri.includes('trashed-') ||
+              item.fileName?.startsWith('.trashed') ||
+              item.fileName?.startsWith('.')) {
+            console.warn(`⚠️ Skipping trashed/invalid file: ${item.uri?.substring(0, 80)}`);
+            return false;
+          }
+          
+          return true;
+        })
         .map(item => {
           // Ensure created is always a valid number
           if (!item.created || typeof item.created !== 'number' || isNaN(item.created)) {
-            item.created = Date.now();
+            // If no timestamp, use current time minus 1 day (older items first)
+            item.created = Date.now() - 86400000;
           }
+          
+          // Ensure timestamps are in milliseconds (not seconds)
+          if (item.created < 10000000000) {
+            item.created = item.created * 1000;
+          }
+          
+          // Ensure video flags are correct - check URI as fallback
+          // CRITICAL: Use priority-based detection - explicit flags first, then extensions, then keywords
+          const hasExplicitVideoFlag = item.type === 'video' || item.isVideo === true;
+          const uriIsVideo = item.uri && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri);
+          const fileNameIsVideo = item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName);
+          
+          // Only use keyword check if no extension match (to avoid false positives)
+          // And only if URI path specifically contains video directories
+          const hasVideoKeyword = !uriIsVideo && !fileNameIsVideo && 
+                                  item.uri && (
+                                    /\/videos?\/|movies?\/|dcim\/video/i.test(item.uri) ||
+                                    (item.uri.toLowerCase().includes('video') && /\.(mp4|mov|avi)$/i.test(item.uri))
+                                  );
+          
+          // Priority-based detection: explicit flags > extensions > keywords
+          const isVideo = hasExplicitVideoFlag || uriIsVideo || fileNameIsVideo || hasVideoKeyword;
+          
+          if (isVideo) {
+            item.isVideo = true;
+            item.type = 'video';
+            
+            // CRITICAL: Ensure we have a valid video URI (not thumbnail)
+            // Don't override the URI if it's already set correctly
+            if (!item.uri || item.uri.trim().length === 0) {
+              console.warn('⚠️ Video item has no URI:', item);
+            }
+            
+            // Ensure thumbnailUri is always set for videos
+            // If not set or same as video URI, use video URI (Image component can handle it)
+            if (!item.thumbnailUri || item.thumbnailUri === item.uri) {
+              item.thumbnailUri = item.uri;
+            }
+            
+            // Debug log for video items (only if URI is missing - for debugging)
+            if (!item.uri || item.uri.trim().length === 0) {
+              console.warn('⚠️ Video item missing URI:', {
+                isVideo: item.isVideo,
+                type: item.type,
+                source: item.source,
+                fileName: item.fileName
+              });
+            }
+          } else {
+            // Explicitly mark as image if not video
+            item.isVideo = false;
+            item.type = 'image'; // Force to image if not video
+          }
+          
           return item;
         })
         .sort((a, b) => {
           // Sort by created timestamp (newest first)
           const aTime = a.created || 0;
           const bTime = b.created || 0;
-          return bTime - aTime;
+          return bTime - aTime; // Descending order (newest first)
         });
 
       // Log summary with timestamp info
       const videoCount = mediaItems.filter(m => m.isVideo).length;
       const imageCount = mediaItems.filter(m => !m.isVideo).length;
+      const totalDuplicates = duplicateCount + cameraRollDuplicateCount;
       console.log(`📊 Combined media: ${imageCount} images, ${videoCount} videos`);
+      console.log(`📊 Total items from MediaStoreService: ${mediaStoreItems.length}`);
+      console.log(`📊 Total items from CameraRoll: ${cameraRollItems.length}`);
+      console.log(`📊 Duplicates detected and merged: ${totalDuplicates} (MediaStore: ${duplicateCount}, CameraRoll: ${cameraRollDuplicateCount})`);
+      console.log(`📊 Final combined items (after deduplication): ${mediaItems.length}`);
       
       // Debug: Show first few items with their timestamps
       if (mediaItems.length > 0) {
-        const sampleItems = mediaItems.slice(0, 5);
-        console.log(`📅 Latest items (first 5):`, sampleItems.map((item, idx) => ({
+        const sampleItems = mediaItems.slice(0, 10); // Show first 10 for better debugging
+        console.log(`📅 Latest items (first 10):`, sampleItems.map((item, idx) => ({
           index: idx,
           type: item.type,
           isVideo: item.isVideo,
           created: item.created,
           createdDate: new Date(item.created).toISOString(),
-          source: item.source
+          source: item.source,
+          hasUri: !!item.uri,
+          uriPrefix: item.uri?.substring(0, 50)
         })));
       }
       
-      // Debug videos
+      // Debug videos - check all sources
       const videos = mediaItems.filter(m => m.isVideo);
+      const videosFromMediaStore = mediaStoreItems.filter(m => m.isVideo || m.type === 'video');
+      const videosFromCameraRoll = cameraRollItems.filter(e => {
+        const node = e.node;
+        return node.type === 'video' || node.video || node.mediaType === 'video';
+      });
+      
+      console.log(`🎥 Videos from MediaStoreService: ${videosFromMediaStore.length}`);
+      console.log(`🎥 Videos from CameraRoll: ${videosFromCameraRoll.length}`);
+      console.log(`🎥 Final combined videos: ${videos.length}`);
+      
       if (videos.length > 0) {
         console.log(`✅ Found ${videos.length} videos total!`);
-        videos.slice(0, 5).forEach((v, idx) => {
+        videos.slice(0, 10).forEach((v, idx) => {
           console.log(`🎥 Video ${idx + 1}:`, {
-            uri: v.uri?.substring(0, 100),
+            uri: v.uri?.substring(0, 80),
             type: v.type,
             isVideo: v.isVideo,
             hasUri: !!v.uri,
             source: v.source,
-            duration: v.duration
+            duration: v.duration,
+            created: new Date(v.created).toISOString()
           });
         });
       } else {
         console.log('⚠️ NO VIDEOS FOUND after combining sources!');
+        console.log('⚠️ MediaStoreService videos:', videosFromMediaStore.map(v => ({ uri: v.uri?.substring(0, 50), isVideo: v.isVideo, type: v.type })));
+        console.log('⚠️ CameraRoll videos:', videosFromCameraRoll.map((e, i) => ({ 
+          index: i,
+          type: e.node.type,
+          hasVideo: !!e.node.video,
+          mediaType: e.node.mediaType
+        })));
       }
 
       // Store in Redux
@@ -645,32 +1029,64 @@ function PostScreen() {
         filtered = mediaItems.filter(item => item.type === 'image' || (!item.isVideo && item.type !== 'video'));
         break;
       case 'Videos':
-        // Filter videos - check both type and isVideo flag, AND check URI patterns as fallback
+        // Filter videos - check multiple indicators
         filtered = mediaItems.filter(item => {
           if (!item || !item.uri) return false;
           
+          // Check explicit flags
           const isVideoByType = item.type === 'video' || item.isVideo === true;
           
-          // Also check URI pattern as fallback (in case detection failed)
-          const uriHasVideoExtension = /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri) ||
-                                       item.uri.toLowerCase().includes('video');
+          // Check URI extension
+          const uriHasVideoExtension = /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri);
           
-          return (isVideoByType || uriHasVideoExtension);
+          // Check filename
+          const fileNameIsVideo = item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName);
+          
+          // Check URI path for video keywords
+          const uriHasVideoKeyword = item.uri.toLowerCase().includes('video') || 
+                                     item.uri.toLowerCase().includes('movie') ||
+                                     item.uri.toLowerCase().includes('/dcim/camera/') && uriHasVideoExtension;
+          
+          const isVideo = isVideoByType || uriHasVideoExtension || fileNameIsVideo || uriHasVideoKeyword;
+          
+          if (isVideo) {
+            // Ensure flags are set correctly
+            item.isVideo = true;
+            item.type = 'video';
+          }
+          
+          return isVideo;
         });
         
         console.log(`🎥 Filtering videos: Total items: ${mediaItems.length}, Videos found: ${filtered.length}`);
         
+        // Debug breakdown
+        const byType = mediaItems.filter(i => i.type === 'video' || i.isVideo === true).length;
+        const byUri = mediaItems.filter(i => i.uri && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(i.uri)).length;
+        console.log(`🎥 Videos by type flag: ${byType}, Videos by URI extension: ${byUri}`);
+        
         if (filtered.length > 0) {
           console.log(`✅ SUCCESS! Found ${filtered.length} videos in filter`);
-          console.log(`🎥 Sample video items:`, filtered.slice(0, 5).map((v, idx) => ({ 
+          console.log(`🎥 Sample video items:`, filtered.slice(0, 10).map((v, idx) => ({ 
             index: idx,
             type: v.type, 
             isVideo: v.isVideo, 
             hasUri: !!v.uri,
-            uri: v.uri?.substring(0, 100) 
+            uri: v.uri?.substring(0, 100),
+            fileName: v.fileName,
+            source: v.source
           })));
         } else {
           console.log('❌ NO VIDEOS FOUND IN FILTER!');
+          // Show why videos might not be detected
+          const allItemsSample = mediaItems.slice(0, 20);
+          console.log('📋 Sample of first 20 items:', allItemsSample.map((item, idx) => ({
+            index: idx,
+            type: item.type,
+            isVideo: item.isVideo,
+            uri: item.uri?.substring(0, 60),
+            fileName: item.fileName
+          })));
         }
         break;
       case 'All albums':
@@ -783,11 +1199,46 @@ function PostScreen() {
 
     // Normal mode - show preview using Redux
     // Ensure item has correct properties before dispatching
+    // Use same priority-based detection as in final mapping
+    const hasExplicitVideoFlag = item.isVideo === true || item.type === 'video';
+    const uriIsVideo = item.uri && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri);
+    const fileNameIsVideo = item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName);
+    
+    // Use explicit flag first, then extension-based detection
+    const isVideo = hasExplicitVideoFlag || uriIsVideo || fileNameIsVideo;
+    
+    // For videos, ensure we use the actual video URI, not thumbnail URI
+    let videoUri = item.uri;
+    if (isVideo) {
+      // Make sure we're using the video URI, not thumbnail URI
+      // thumbnailUri should only be used for poster/thumbnail display
+      if (!videoUri || videoUri === item.thumbnailUri) {
+        // If URI is missing or same as thumbnail, log warning
+        console.warn('⚠️ Video URI might be incorrect:', {
+          uri: item.uri,
+          thumbnailUri: item.thumbnailUri,
+          fileName: item.fileName
+        });
+      }
+      
+      // Ensure video URI is properly formatted
+      if (videoUri && !videoUri.startsWith('file://') && !videoUri.startsWith('content://') && 
+          !videoUri.startsWith('http') && !videoUri.startsWith('ph://')) {
+        if (videoUri.startsWith('/')) {
+          videoUri = `file://${videoUri}`;
+        }
+      }
+    }
+    
     const previewItem = {
       ...item,
-      // Explicitly set isVideo to false if it's not a video
-      isVideo: item.isVideo === true || item.type === 'video' ? true : false,
-      type: item.type || (item.isVideo ? 'video' : 'image'),
+      // Explicitly set isVideo
+      isVideo: isVideo ? true : false,
+      type: isVideo ? 'video' : (item.type || 'image'),
+      // Ensure URI is correct for videos
+      uri: isVideo ? videoUri : item.uri,
+      // Keep thumbnailUri for poster
+      thumbnailUri: item.thumbnailUri || (isVideo ? videoUri : item.uri),
     };
     
     console.log('📸 Setting preview item:', {
@@ -795,6 +1246,8 @@ function PostScreen() {
       type: previewItem.type,
       isVideo: previewItem.isVideo,
       uri: previewItem.uri?.substring(0, 100),
+      thumbnailUri: previewItem.thumbnailUri?.substring(0, 80),
+      fileName: previewItem.fileName,
     });
     
     dispatch(setSelectedPreviewItem(previewItem));
@@ -877,29 +1330,61 @@ function PostScreen() {
           
           {/* Explicitly check if it's a video - use multiple conditions */}
           {(selectedPreviewItem.isVideo === true || selectedPreviewItem.type === 'video') ? (
-            <Video
-              source={{ uri: selectedPreviewItem.uri }}
-              style={styles.previewMedia}
-              paused={false}
-              muted={true}
-              resizeMode="contain"
-              poster={selectedPreviewItem.thumbnailUri || selectedPreviewItem.uri}
-              posterResizeMode="cover"
-              repeat={true}
-              playInBackground={false}
-              ignoreSilentSwitch="ignore"
-              onError={(error) => {
-                console.error('❌ Video playback error:', error);
-                console.error('❌ Video URI:', selectedPreviewItem.uri);
-                console.error('❌ Preview item type:', selectedPreviewItem.type, 'isVideo:', selectedPreviewItem.isVideo);
-              }}
-              onLoadStart={() => {
-                console.log('🎥 Video load started:', selectedPreviewItem.uri?.substring(0, 100));
-              }}
-              onLoad={() => {
-                console.log('✅ Video loaded successfully');
-              }}
-            />
+            (() => {
+              // Ensure we have a valid video URI
+              const videoUri = selectedPreviewItem.uri;
+              const thumbnailUri = selectedPreviewItem.thumbnailUri || videoUri;
+              
+              // Validate video URI
+              if (!videoUri || videoUri.trim().length === 0) {
+                console.error('❌ Invalid video URI in preview');
+                return (
+                  <View style={[styles.previewMedia, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }]}>
+                    <Text style={{ color: 'white' }}>Invalid video URI</Text>
+                  </View>
+                );
+              }
+              
+              console.log('🎥 Rendering Video component:', {
+                uri: videoUri.substring(0, 100),
+                thumbnailUri: thumbnailUri?.substring(0, 80),
+                isVideo: selectedPreviewItem.isVideo,
+                type: selectedPreviewItem.type
+              });
+              
+              return (
+                <Video
+                  source={{ uri: videoUri }}
+                  style={styles.previewMedia}
+                  paused={false}
+                  muted={true}
+                  resizeMode="contain"
+                  poster={thumbnailUri !== videoUri ? thumbnailUri : undefined}
+                  posterResizeMode="cover"
+                  repeat={true}
+                  playInBackground={false}
+                  ignoreSilentSwitch="ignore"
+                  controls={false}
+                  onError={(error) => {
+                    console.error('❌ Video playback error:', error);
+                    console.error('❌ Video URI:', videoUri);
+                    console.error('❌ Preview item type:', selectedPreviewItem.type, 'isVideo:', selectedPreviewItem.isVideo);
+                    console.error('❌ Error details:', JSON.stringify(error.nativeEvent || error, null, 2));
+                  }}
+                  onLoadStart={() => {
+                    console.log('🎥 Video load started:', videoUri.substring(0, 100));
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Video loaded successfully');
+                  }}
+                  onBuffer={({ isBuffering }) => {
+                    if (isBuffering) {
+                      console.log('⏳ Video buffering...');
+                    }
+                  }}
+                />
+              );
+            })()
           ) : (
             <Image
               source={{ uri: selectedPreviewItem.uri }}
@@ -1060,11 +1545,24 @@ function PostScreen() {
                     </View>
                 ) : item.isVideo ? (
                   // Video thumbnail rendering - Use Image for better performance
-                    <View style={styles.videoContainer}>
+                  <View style={styles.videoContainer}>
                     <Image
                       source={{ uri: item.thumbnailUri || item.uri }}
                       style={styles.image}
                       resizeMode="cover"
+                      onError={(error) => {
+                        // Only log if it's not a trashed file (to reduce spam)
+                        const uri = (item.thumbnailUri || item.uri || '').toLowerCase();
+                        if (!uri.includes('.trashed') && !uri.includes('trashed-')) {
+                          console.warn(`⚠️ Video thumbnail load error for ${item.uri?.substring(0, 50)}:`, error);
+                        }
+                      }}
+                      onLoadStart={() => {
+                        // Thumbnail loading started
+                      }}
+                      onLoad={() => {
+                        // Thumbnail loaded successfully
+                      }}
                     />
                     {/* Play icon overlay */}
                     <View style={styles.videoPlayOverlay}>

@@ -97,9 +97,12 @@ export const clearAuthTokens = async () => {
 };
 
 /**
- * Check if JWT token is expired
+ * Check if JWT token is expired or will expire soon
+ * @param {string} token - JWT token to check
+ * @param {number} bufferSeconds - Seconds before expiration to consider token expired (default: 5 seconds)
+ * @returns {boolean} - true if token is expired or will expire within buffer time
  */
-export const isTokenExpired = (token) => {
+export const isTokenExpired = (token, bufferSeconds = 5) => {
   if (!token) return true;
   
   try {
@@ -112,9 +115,19 @@ export const isTokenExpired = (token) => {
     
     const decoded = JSON.parse(jsonPayload);
     const currentTime = Date.now() / 1000;
+    const expirationTime = decoded.exp;
+    const timeUntilExpiry = expirationTime - currentTime;
     
-    // Check if token is expired (with 5 minute buffer)
-    return decoded.exp < (currentTime + 300);
+    // Check if token is already expired or will expire within buffer time
+    // Only refresh if token expires within the buffer time (e.g., 5 seconds)
+    const isExpired = expirationTime < (currentTime + bufferSeconds);
+    
+    // Log only if token is close to expiring (within 10 seconds) to reduce noise
+    if (timeUntilExpiry < 10 && timeUntilExpiry > 0) {
+      console.log(`⏰ Token expires in ${timeUntilExpiry.toFixed(1)} seconds (buffer: ${bufferSeconds}s, expired: ${isExpired})`);
+    }
+    
+    return isExpired;
   } catch (error) {
     console.error('Error checking token expiration:', error);
     return true; // Assume expired if we can't decode
