@@ -19,7 +19,7 @@ src/navigation/ProfileStackNavigator.js
 src/redux/slices/postSlice.js
 src/redux/slices/uiSlice.js
 src/redux/store.js
-src/screens/SocialScreen/Post/CropScreen.js
+src/screens/SocialScreen/Post/CropFilterScreen.js
 src/screens/SocialScreen/Post/PostScreen.js
 src/screens/SocialScreen/Profile/AccountScreen.js
 src/screens/SocialScreen/Profile/CommentsScreen.js

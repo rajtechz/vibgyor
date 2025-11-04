@@ -18,7 +18,7 @@ const getLocalServerUrl = () => {
   }
   
   // For network IP testing (if server is bound to 0.0.0.0):
-  // return 'http://192.168.29.119:3000';
+  // return 'http://192.168.29.173:3000';
 };
 
 // Auth API Service

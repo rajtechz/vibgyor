@@ -42,19 +42,27 @@ function TabIconWithIndicator({ IconComponent, focused, size }) {
 
 // Custom tab bar with gradient background
 function CustomTabBar({ state, descriptors, navigation }) {
-  const { isTabBarVisible, isChatScreenActive, isCallScreenActive, isStoryScreenActive, isSettingsScreenActive } = useSelector((state) => state.ui);
+  const { isTabBarVisible, isChatScreenActive, isCallScreenActive, isStoryScreenActive, isSettingsScreenActive, isFilterScreenActive, isCropScreenActive } = useSelector((state) => state.ui);
 
   // Debug logging
-  console.log('🔍 TabBar State:', { isTabBarVisible, isChatScreenActive, isCallScreenActive, isStoryScreenActive, isSettingsScreenActive });
+  console.log('🔍 TabBar State:', { isTabBarVisible, isChatScreenActive, isCallScreenActive, isStoryScreenActive, isSettingsScreenActive, isFilterScreenActive, isCropScreenActive });
 
   // Don't render tab bar if it should be hidden
-  if (!isTabBarVisible || isChatScreenActive || isCallScreenActive || isStoryScreenActive || isSettingsScreenActive) {
-    console.log('🚫 TabBar Hidden');
+  const shouldHide = !isTabBarVisible || isChatScreenActive || isCallScreenActive || isStoryScreenActive || isSettingsScreenActive || isFilterScreenActive || isCropScreenActive;
+  
+  if (shouldHide) {
+    console.log('🚫 TabBar Hidden - Returning null');
     return null;
   }
 
   return (
-    <View style={{ position: 'relative' }}>
+    <View 
+      style={{ 
+        position: 'relative',
+        pointerEvents: 'auto',
+      }}
+      pointerEvents="box-none"
+    >
       <LinearGradient
         colors={['#2B0266', '#190140', '#080110']}
         start={{ x: 0, y: 0 }}
@@ -133,47 +141,72 @@ function CustomTabBar({ state, descriptors, navigation }) {
 }
 
 function MainTabNavigator() {
+  const { isTabBarVisible, isChatScreenActive, isCallScreenActive, isStoryScreenActive, isSettingsScreenActive, isFilterScreenActive, isCropScreenActive } = useSelector((state) => state.ui);
+  
+  // Determine if tab bar should be hidden
+  const shouldHideTabBar = !isTabBarVisible || isChatScreenActive || isCallScreenActive || isStoryScreenActive || isSettingsScreenActive || isFilterScreenActive || isCropScreenActive;
+
+  console.log('🔍 MainTabNavigator: shouldHideTabBar =', shouldHideTabBar);
+  console.log('🔍 MainTabNavigator: State values:', { isTabBarVisible, isFilterScreenActive, isCropScreenActive });
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
+        tabBarStyle: shouldHideTabBar 
+          ? { 
+              height: 0, 
+              opacity: 0,
+              position: 'absolute',
+              bottom: -1000,
+            } 
+          : { 
+              height: 80,
+            },
       }}
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props) => {
+        // Check Redux state and return null if should hide
+        if (shouldHideTabBar) {
+          console.log('🚫 TabBar Function: Returning null');
+          return null;
+        }
+        return <CustomTabBar {...props} />;
+      }}
     >
       <Tab.Screen
         name="Home"
         component={HomeStackNavigator}
         options={{
-          tabBarIcon: HomeIconGradient
+          tabBarIcon: HomeIconGradient,
         }}
       />
       <Tab.Screen
         name="Search"
         component={SearchScreen}
         options={{
-          tabBarIcon: SearchIconGradient
+          tabBarIcon: SearchIconGradient,
         }}
       />
       <Tab.Screen
         name="Post"
         component={PostStackNavigator}
         options={{
-          tabBarIcon: PostIconGradient
+          tabBarIcon: PostIconGradient,
         }}
       />
       <Tab.Screen
         name="Messages"
         component={MessagesStackNavigator}
         options={{
-          tabBarIcon: MessageIconGradient
+          tabBarIcon: MessageIconGradient,
         }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileStackNavigator}
         options={{
-          tabBarIcon: UserIconGradient
+          tabBarIcon: UserIconGradient,
         }}
       />
     </Tab.Navigator>

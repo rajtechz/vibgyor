@@ -8,6 +8,8 @@ const initialState = {
   isStoryScreenActive: false,
   isSettingsScreenActive: false,
   isProfileDetailsScreenActive: false,
+  isFilterScreenActive: false,
+  isCropScreenActive: false,
   currentActiveScreen: null,
   hasShownVerifyModal: false,
 };
@@ -21,6 +23,8 @@ const uiSlice = createSlice({
       state.isChatScreenActive = false;
       state.isCallScreenActive = false;
       state.isStoryScreenActive = false;
+      state.isFilterScreenActive = false;
+      state.isCropScreenActive = false;
     },
     hideTabBar: (state) => {
       console.log('🔄 Redux: hideTabBar called');
@@ -101,6 +105,27 @@ const uiSlice = createSlice({
         isSettingsScreenActive: state.isSettingsScreenActive
       });
     },
+    setFilterScreenActive: (state, action) => {
+      console.log('🎨 Redux: setFilterScreenActive called with:', action.payload);
+      state.isFilterScreenActive = action.payload;
+      state.isTabBarVisible = !action.payload;
+      if (action.payload) {
+        state.isChatScreenActive = false;
+        state.isCallScreenActive = false;
+        state.isStoryScreenActive = false;
+        state.isSettingsScreenActive = false;
+        state.isProfileDetailsScreenActive = false;
+      }
+      console.log('🎨 Redux: New state:', { 
+        isFilterScreenActive: state.isFilterScreenActive, 
+        isTabBarVisible: state.isTabBarVisible,
+        isChatScreenActive: state.isChatScreenActive,
+        isCallScreenActive: state.isCallScreenActive,
+        isStoryScreenActive: state.isStoryScreenActive,
+        isSettingsScreenActive: state.isSettingsScreenActive,
+        isProfileDetailsScreenActive: state.isProfileDetailsScreenActive
+      });
+    },
     setCurrentScreen: (state, action) => {
       state.currentActiveScreen = action.payload;
       // Auto-hide tab bar for specific screens
@@ -122,17 +147,27 @@ const uiSlice = createSlice({
       } else if (action.payload === 'Crop') {
         console.log('✂️ Redux: setCurrentScreen called with Crop - hiding tab bar');
         state.isTabBarVisible = false;
+        state.isCropScreenActive = true;
         state.isChatScreenActive = false;
         state.isCallScreenActive = false;
         state.isStoryScreenActive = false;
+        state.isFilterScreenActive = false;
+        state.isSettingsScreenActive = false;
+        state.isProfileDetailsScreenActive = false;
         console.log('✂️ Redux: isTabBarVisible set to:', state.isTabBarVisible);
+        console.log('✂️ Redux: isCropScreenActive set to:', state.isCropScreenActive);
       } else if (action.payload === 'Filter') {
         console.log('🎨 Redux: setCurrentScreen called with Filter - hiding tab bar');
         state.isTabBarVisible = false;
+        state.isFilterScreenActive = true;
+        state.isCropScreenActive = false;
         state.isChatScreenActive = false;
         state.isCallScreenActive = false;
         state.isStoryScreenActive = false;
+        state.isSettingsScreenActive = false;
+        state.isProfileDetailsScreenActive = false;
         console.log('🎨 Redux: isTabBarVisible set to:', state.isTabBarVisible);
+        console.log('🎨 Redux: isFilterScreenActive set to:', state.isFilterScreenActive);
       } else if (action.payload === 'LikeResult') {
         state.isTabBarVisible = false;
         state.isChatScreenActive = false;
@@ -178,6 +213,8 @@ const uiSlice = createSlice({
         state.isChatScreenActive = false;
         state.isCallScreenActive = false;
         state.isStoryScreenActive = false;
+        state.isFilterScreenActive = false;
+        state.isCropScreenActive = false;
       }
     },
     setVerifyModalShown: (state, action) => {
@@ -190,6 +227,8 @@ const uiSlice = createSlice({
       state.isStoryScreenActive = false;
       state.isSettingsScreenActive = false;
       state.isProfileDetailsScreenActive = false;
+      state.isFilterScreenActive = false;
+      state.isCropScreenActive = false;
       state.currentActiveScreen = null;
       state.hasShownVerifyModal = false;
     },
@@ -204,6 +243,7 @@ export const {
   setStoryScreenActive,
   setSettingsScreenActive,
   setProfileDetailsScreenActive,
+  setFilterScreenActive,
   setCurrentScreen,
   setVerifyModalShown,
   resetUI 

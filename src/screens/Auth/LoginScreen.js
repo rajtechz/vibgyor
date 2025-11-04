@@ -162,13 +162,7 @@ function LoginScreen() {
             disabled={isLoading}
           />
 
-          {/* <View style={styles.orContainer}>
-            <View style={styles.orLine} />
-            <View style={styles.orCircle}>
-              <Text style={styles.orText}></Text>
-            </View>
-            <View style={styles.orLine} />
-          </View> */}
+        
        
 
        

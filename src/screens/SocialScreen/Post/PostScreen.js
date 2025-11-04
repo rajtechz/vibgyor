@@ -14,6 +14,7 @@ import {
   PermissionsAndroid,
   Alert,
   Linking,
+  InteractionManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -22,6 +23,7 @@ import Svg, { Path } from 'react-native-svg';
 import Video from 'react-native-video';
 import CommonBackground from '../../../components/common/CommonBackground';
 import MediaStoreService from '../../../services/MediaStoreService';
+import { launchCamera } from 'react-native-image-picker';
 import {
   setGalleryMedia,
   setAllMedia,
@@ -264,15 +266,13 @@ const extractFilename = (uri, fileName) => {
   return filename.split('?')[0].toLowerCase().trim();
 };
 
-// Check if two items represent the same file
+// Enhanced deduplication - check if two items represent the same file
+// AGGRESSIVE: Multiple checks to catch all duplicates
 const isSameFile = (item1, item2) => {
-  // 1. Direct URI match (exact same URI)
+  // 1. Direct URI match (exact same URI) - most reliable
   if (item1.uri && item2.uri && item1.uri === item2.uri) return true;
-  if (item1.thumbnailUri && item2.uri && item1.thumbnailUri === item2.uri) return true;
-  if (item1.uri && item2.thumbnailUri && item1.uri === item2.thumbnailUri) return true;
-  if (item1.thumbnailUri && item2.thumbnailUri && item1.thumbnailUri === item2.thumbnailUri) return true;
   
-  // 2. Normalized file path match (for file:// URIs)
+  // 2. Check if URIs point to same file path (normalized)
   const path1 = normalizeUriPath(item1.uri || '');
   const path2 = normalizeUriPath(item2.uri || '');
   
@@ -280,16 +280,88 @@ const isSameFile = (item1, item2) => {
     return true;
   }
   
-  // 3. Filename + timestamp match (for content:// URIs or different URI formats)
+  // 2b. Normalize paths more aggressively (handle different URI schemes)
+  const normalizePath = (path) => {
+    if (!path) return '';
+    return path.toLowerCase()
+      .replace(/^file:\/\//i, '')
+      .replace(/^content:\/\//i, '')
+      .replace(/^ph:\/\//i, '')
+      .replace(/\\/g, '/')
+      .trim();
+  };
+  
+  const normPath1 = normalizePath(item1.uri);
+  const normPath2 = normalizePath(item2.uri);
+  
+  if (normPath1 && normPath2 && normPath1 === normPath2 && normPath1.length > 5) {
+    return true;
+  }
+  
+  // 3. Check if one item's URI matches another item's thumbnail URI (or vice versa)
+  // This prevents video thumbnails from appearing as separate photos
+  const thumbPath1 = normalizeUriPath(item1.thumbnailUri || '');
+  const thumbPath2 = normalizeUriPath(item2.thumbnailUri || '');
+  
+  // Check if item1's URI matches item2's thumbnail URI
+  if (path1 && thumbPath2 && path1 === thumbPath2 && path1.length > 5) {
+    // item1's URI is actually item2's thumbnail - they're duplicates
+    return true;
+  }
+  
+  // Check if item2's URI matches item1's thumbnail URI
+  if (path2 && thumbPath1 && path2 === thumbPath1 && path2.length > 5) {
+    // item2's URI is actually item1's thumbnail - they're duplicates
+    return true;
+  }
+  
+  // Check if thumbnail URIs match (but don't match video URI to thumbnail URI)
+  if (thumbPath1 && thumbPath2 && thumbPath1 === thumbPath2 && thumbPath1.length > 0 && 
+      thumbPath1 !== path1 && thumbPath2 !== path2) {
+    return true;
+  }
+  
+  // 4. Filename + size match (very reliable - same filename with same size = duplicate)
   const filename1 = extractFilename(item1.uri, item1.fileName);
   const filename2 = extractFilename(item2.uri, item2.fileName);
   
-  if (filename1 && filename2 && filename1 === filename2 && filename1.length > 0) {
-    const timeDiff = Math.abs((item1.created || 0) - (item2.created || 0));
-    // If same filename and created within 2 seconds, likely same file
-    // Reduced tolerance to 2 seconds for more accurate matching
-    if (timeDiff < 2000) {
+  if (filename1 && filename2 && filename1 === filename2 && filename1.length > 3) {
+    // If both have size info and sizes match, it's the same file
+    if (item1.size && item2.size && item1.size === item2.size) {
       return true;
+    }
+    
+    // Fallback: filename + timestamp match (within 5 seconds for same filename)
+    const timeDiff = Math.abs((item1.created || 0) - (item2.created || 0));
+    if (timeDiff < 5000) {
+      return true;
+    }
+  }
+  
+  // 5. Extract filename from URI path directly (more comprehensive)
+  if (item1.uri && item2.uri) {
+    const getFileNameFromUri = (uri) => {
+      if (!uri) return null;
+      const cleanUri = uri.split('?')[0].split('#')[0].toLowerCase();
+      // Extract filename with extension
+      const match = cleanUri.match(/([^/\\]+\.(jpg|jpeg|png|gif|bmp|webp|heic|heif|mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime))$/i);
+      return match ? match[1].toLowerCase() : null;
+    };
+    
+    const uriFileName1 = getFileNameFromUri(item1.uri);
+    const uriFileName2 = getFileNameFromUri(item2.uri);
+    
+    if (uriFileName1 && uriFileName2 && uriFileName1 === uriFileName2) {
+      // If sizes match, definitely the same file
+      if (item1.size && item2.size && item1.size === item2.size) {
+        return true;
+      }
+      
+      // Otherwise check timestamp (within 5 seconds for same filename)
+      const timeDiff = Math.abs((item1.created || 0) - (item2.created || 0));
+      if (timeDiff < 5000) {
+        return true;
+      }
     }
   }
   
@@ -330,10 +402,19 @@ function PostScreen() {
   const [selectedTab, setSelectedTab] = useState('POST'); // POST, STORY, REEL
   const [showRecentsDropdown, setShowRecentsDropdown] = useState(false);
   const [isMultiSelect, setIsMultiSelect] = useState(false);
-  const [showPreview, setShowPreview] = useState(true); // Show/hide preview on scroll
-  const [lastScrollY, setLastScrollY] = useState(0);
   const scrollViewRef = useRef(null);
   const isFirstMount = useRef(true);
+  
+  // Local filter state for instant UI update (syncs with Redux)
+  const [localSelectedFilter, setLocalSelectedFilter] = useState(selectedFilter || 'Recents');
+  
+  // Sync local filter with Redux state (for initial load and external updates)
+  useEffect(() => {
+    if (selectedFilter) {
+      setLocalSelectedFilter(selectedFilter);
+      console.log('🔄 Synced local filter with Redux:', selectedFilter);
+    }
+  }, [selectedFilter]);
 
   // Check storage permission
   const checkStoragePermission = useCallback(async () => {
@@ -399,6 +480,157 @@ function PostScreen() {
     }
   }, [dispatch]);
 
+  // Request camera permission
+  const requestCameraPermission = useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      // iOS handles camera permissions automatically
+      return true;
+    }
+
+    try {
+      // Check if permission is already granted
+      const hasPermission = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.CAMERA
+      );
+      
+      if (hasPermission) {
+        return true;
+      }
+
+      // Request camera permission
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Camera Permission',
+          message: 'This app needs access to your camera to take photos and videos.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'Allow',
+        }
+      );
+
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      console.warn('Camera permission error:', err);
+      return false;
+    }
+  }, []);
+
+  // OPTIMIZED: Memoized filter function - fast and smooth (Instagram style)
+  // Defined before loadGalleryImages so it can be used
+  const getFilteredMedia = useCallback((mediaItems, filterType) => {
+    try {
+      if (!mediaItems || !Array.isArray(mediaItems) || mediaItems.length === 0) {
+        console.log('⚠️ getFilteredMedia: No media items provided', {
+          isNull: !mediaItems,
+          isArray: Array.isArray(mediaItems),
+          length: mediaItems?.length
+        });
+        return [];
+      }
+
+      console.log('🔍 getFilteredMedia called:', {
+        filterType,
+        totalItems: mediaItems.length,
+        firstItem: mediaItems[0] ? {
+          type: mediaItems[0].type,
+          isVideo: mediaItems[0].isVideo,
+          hasUri: !!mediaItems[0].uri
+        } : 'No items'
+      });
+
+      let filtered = [];
+      
+      try {
+        switch (filterType) {
+          case 'Photos':
+            // Filter only images - simple and reliable check
+            filtered = mediaItems.filter(item => {
+              try {
+                if (!item || item.isAddButton || !item.uri) return false;
+                
+                // First check: If explicitly marked as video, exclude it
+                if (item.isVideo === true || item.type === 'video') {
+                  return false;
+                }
+                
+                // Second check: If URI has video extension, exclude it
+                const uriIsVideoExt = /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri);
+                if (uriIsVideoExt) return false;
+                
+                // Third check: If filename has video extension, exclude it
+                if (item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName)) {
+                  return false;
+                }
+                
+                // Everything else is an image
+                return true;
+              } catch (itemError) {
+                console.error('❌ Error filtering item:', itemError, item);
+                return false;
+              }
+            });
+            break;
+            
+          case 'Videos':
+            // Filter only videos - explicit check with fast detection
+            filtered = mediaItems.filter(item => {
+              try {
+                if (!item || !item.uri || item.isAddButton) return false;
+                
+                // Fast video detection - check flags first (most reliable)
+                if (item.isVideo === true || item.type === 'video') {
+                  return true;
+                }
+                
+                // Fallback: Check URI extension
+                const uriIsVideo = /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri);
+                if (uriIsVideo) return true;
+                
+                // Check filename extension
+                if (item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName)) {
+                  return true;
+                }
+                
+                return false;
+              } catch (itemError) {
+                console.error('❌ Error filtering video item:', itemError, item);
+                return false;
+              }
+            });
+            break;
+            
+          case 'Recents':
+          case 'All albums':
+          default:
+            filtered = mediaItems;
+            break;
+        }
+        
+        console.log('✅ getFilteredMedia completed:', {
+          filterType,
+          inputCount: mediaItems.length,
+          outputCount: filtered.length
+        });
+        
+      } catch (switchError) {
+        console.error('❌ ERROR in filter switch statement:', switchError);
+        console.error('❌ Switch Error Stack:', switchError.stack);
+        throw switchError;
+      }
+      
+      return filtered;
+      
+    } catch (error) {
+      console.error('❌❌❌ CRITICAL ERROR IN getFilteredMedia ❌❌❌');
+      console.error('❌ Error Message:', error.message);
+      console.error('❌ Error Stack:', error.stack);
+      console.error('❌ Filter Type:', filterType);
+      console.error('❌ Media Items:', mediaItems);
+      throw error;
+    }
+  }, []);
+
   // Load gallery images from device - Combining MediaStoreService + CameraRoll
   const loadGalleryImages = useCallback(async () => {    
     dispatch(setLoading(true));
@@ -411,7 +643,6 @@ function PostScreen() {
       }
 
       if (!permissionGranted) {
-        console.log('❌ Storage permission not granted');
         dispatch(setPermission(false));
         dispatch(setGalleryMedia([{ id: 'camera', isAddButton: true }]));
         dispatch(setLoading(false));
@@ -420,21 +651,18 @@ function PostScreen() {
 
       dispatch(setPermission(true));
 
-      // Use BOTH MediaStoreService and CameraRoll for better video detection
-      // Use Promise.allSettled to continue even if MediaStoreService times out
+      // OPTIMIZED: Use BOTH MediaStoreService and CameraRoll - optimized for fast initial load
+      // Load CameraRoll first (faster), then MediaStoreService in background
       const results = await Promise.allSettled([
-        // Fetch from MediaStoreService (better for videos on Android)
-        MediaStoreService.fetchGalleryImages({ limit: 1000, filterType: null }),
-        // Fetch from CameraRoll (better metadata)
+        // Fetch from MediaStoreService (better for videos on Android) - reduced limit
+        MediaStoreService.fetchGalleryImages({ limit: 300, filterType: null }),
+        // Fetch from CameraRoll (better metadata) - faster native API
         (CameraRoll && typeof CameraRoll.getPhotos === 'function') 
           ? CameraRoll.getPhotos({
-              first: 1000, // Increased to get more items for better sorting
+              first: 300, // Reduced for faster initial load
               assetType: 'All',
               groupTypes: 'All',
-            }).then(result => result.edges || []).catch(err => {
-              console.warn('⚠️ CameraRoll error:', err);
-              return [];
-            })
+            }).then(result => result.edges || []).catch(() => [])
           : Promise.resolve([])
       ]);
 
@@ -442,16 +670,7 @@ function PostScreen() {
       const mediaStoreItems = results[0].status === 'fulfilled' ? results[0].value : [];
       const cameraRollItems = results[1].status === 'fulfilled' ? results[1].value : [];
       
-      // Log status
-      if (results[0].status === 'rejected') {
-        console.warn('⚠️ MediaStoreService failed (non-fatal):', results[0].reason?.message || 'Unknown error');
-      }
-      if (results[1].status === 'rejected') {
-        console.warn('⚠️ CameraRoll failed (non-fatal):', results[1].reason?.message || 'Unknown error');
-      }
-
-      console.log(`📸 MediaStoreService: ${mediaStoreItems.length} items`);
-      console.log(`📸 CameraRoll: ${cameraRollItems.length} items`);
+      // Silent fail - continue without logging
 
       // Combine both sources - prioritize MediaStoreService for videos
       // Use normalized URI path as map key for better deduplication
@@ -478,8 +697,15 @@ function PostScreen() {
         }
         
         // Generate a unique key based on normalized file path for better deduplication
+        // Use filename + size + timestamp for more reliable deduplication
         const normalizedPath = normalizeUriPath(item.uri || '');
-        const mapKey = normalizedPath || item.id || `mediastore_${index}_${createdTimestamp}`;
+        const fileName = extractFilename(item.uri, item.fileName);
+        // Use filename + size + timestamp as key if available (size is most reliable)
+        const mapKey = fileName && fileName.length > 3 && item.size
+          ? `${fileName}_${item.size}_${Math.floor(createdTimestamp / 1000)}` 
+          : fileName && fileName.length > 3
+          ? `${fileName}_${Math.floor(createdTimestamp / 1000)}`
+          : (normalizedPath || item.id || `mediastore_${index}_${createdTimestamp}`);
         const id = item.id || mapKey;
         // Enhanced video detection - use extension-based detection (more reliable)
         // Only check explicit flags and file extensions, NOT keywords (to avoid false positives)
@@ -488,16 +714,7 @@ function PostScreen() {
         const fileNameIsVideo = item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName);
         const isVideo = hasExplicitVideoFlag || uriIsVideo || fileNameIsVideo;
         
-        // Debug log for videos from MediaStoreService
-        if (isVideo) {
-          console.log(`🎥 MediaStoreService item is video:`, {
-            id: id,
-            uri: item.uri?.substring(0, 80),
-            type: item.type,
-            isVideo: item.isVideo,
-            fileName: item.fileName
-          });
-        }
+        // Remove debug logs for performance
         
         // Ensure URI is properly formatted for videos
         let videoUri = item.uri;
@@ -536,37 +753,43 @@ function PostScreen() {
           thumbnailUri = videoUri;
         }
         
-        // Check if item already exists - use improved deduplication
-        // First check by normalized path key (fastest)
+        // Check if item already exists - ALWAYS check all items for duplicates
         let existing = null;
         let existingKey = null;
         
-        if (normalizedPath && combinedMediaMap.has(mapKey)) {
-          existing = combinedMediaMap.get(mapKey);
-          existingKey = mapKey;
-        } else {
-          // Create a temporary item object for comparison
-          const tempItem = {
-            uri: videoUri || item.uri,
-            thumbnailUri: thumbnailUri,
-            fileName: item.fileName,
-            created: createdTimestamp
-          };
-          
-          // Check by improved file matching (handles different URI formats)
+        // Create a temporary item object for comparison
+        const tempItem = {
+          uri: videoUri || item.uri,
+          thumbnailUri: thumbnailUri,
+          fileName: item.fileName,
+          created: createdTimestamp
+        };
+        
+        // First check by mapKey (fast path)
+        if (combinedMediaMap.has(mapKey)) {
+          const existingByKey = combinedMediaMap.get(mapKey);
+          // Verify it's actually the same file
+          if (isSameFile(tempItem, existingByKey)) {
+            existing = existingByKey;
+            existingKey = mapKey;
+          }
+        }
+        
+        // If not found by key, check ALL items in map (comprehensive check)
+        if (!existing) {
           for (const [key, value] of combinedMediaMap.entries()) {
             if (isSameFile(tempItem, value)) {
               existing = value;
               existingKey = key;
-              break;
+              break; // Found duplicate - stop searching
             }
           }
-          
-          // If not found by file matching, check by ID (fallback)
-          if (!existing && combinedMediaMap.has(id)) {
-            existing = combinedMediaMap.get(id);
-            existingKey = id;
-          }
+        }
+        
+        // If still not found, check by ID (fallback)
+        if (!existing && combinedMediaMap.has(id)) {
+          existing = combinedMediaMap.get(id);
+          existingKey = id;
         }
         
         if (existing) {
@@ -604,9 +827,14 @@ function PostScreen() {
           if (item.duration && !existing.duration) {
             existing.duration = item.duration;
           }
+          
+          // Update size if missing (important for deduplication)
+          if (item.size && !existing.size) {
+            existing.size = item.size;
+          }
         } else {
-          // Use normalized path as key if available, otherwise use ID
-          const finalKey = normalizedPath || id;
+          // Use mapKey (filename + timestamp) as key for consistent deduplication
+          const finalKey = mapKey;
           combinedMediaMap.set(finalKey, {
             id,
             uri: videoUri || item.uri,
@@ -615,6 +843,7 @@ function PostScreen() {
             type: isVideo ? 'video' : 'image',
             isVideo: isVideo, // Explicitly set boolean
             duration: item.duration || null,
+            size: item.size || null, // Preserve size for better deduplication
             isAddButton: false,
             created: createdTimestamp, // Always a number in milliseconds
             source: 'mediastore', // Track source
@@ -701,42 +930,56 @@ function PostScreen() {
           }
         }
         
-        // Generate ID and map key - use normalized path for better deduplication
+        // Generate ID and map key - use filename + size + timestamp for better deduplication
         const normalizedPath = normalizeUriPath(mediaUri || '');
+        const fileName = extractFilename(mediaUri, node.image?.filename || node.filename);
+        // Get file size if available (from image.size or video.size)
+        const fileSize = node.image?.size || node.video?.size || node.size || null;
+        // Use filename + size + timestamp as key if available (size is most reliable)
+        const mapKey = fileName && fileName.length > 3 && fileSize
+          ? `${fileName}_${fileSize}_${Math.floor(createdTimestamp / 1000)}`
+          : fileName && fileName.length > 3
+          ? `${fileName}_${Math.floor(createdTimestamp / 1000)}`
+          : (normalizedPath || mediaUri || `cameraroll_${index}_${createdTimestamp}`);
         const id = mediaUri || `cameraroll_${index}_${createdTimestamp}`;
-        const mapKey = normalizedPath || id;
         
-        // Check if item already exists - use improved deduplication
+        // Check if item already exists - ALWAYS check all items for duplicates
         let existing = null;
         let existingKey = null;
         
-        // First check by normalized path key (fastest)
-        if (normalizedPath && combinedMediaMap.has(mapKey)) {
-          existing = combinedMediaMap.get(mapKey);
-          existingKey = mapKey;
-        } else {
-          // Create a temporary item object for comparison
-          const tempItem = {
-            uri: mediaUri,
-            thumbnailUri: thumbnailUri,
-            fileName: node.image?.filename || node.filename,
-            created: createdTimestamp
-          };
-          
-          // Check by improved file matching (handles different URI formats)
+        // Create a temporary item object for comparison
+        const tempItem = {
+          uri: mediaUri,
+          thumbnailUri: thumbnailUri,
+          fileName: node.image?.filename || node.filename,
+          created: createdTimestamp
+        };
+        
+        // First check by mapKey (fast path)
+        if (combinedMediaMap.has(mapKey)) {
+          const existingByKey = combinedMediaMap.get(mapKey);
+          // Verify it's actually the same file
+          if (isSameFile(tempItem, existingByKey)) {
+            existing = existingByKey;
+            existingKey = mapKey;
+          }
+        }
+        
+        // If not found by key, check ALL items in map (comprehensive check)
+        if (!existing) {
           for (const [key, value] of combinedMediaMap.entries()) {
             if (isSameFile(tempItem, value)) {
               existing = value;
               existingKey = key;
-              break;
+              break; // Found duplicate - stop searching
             }
           }
-          
-          // If not found by file matching, check by ID (fallback)
-          if (!existing && combinedMediaMap.has(id)) {
-            existing = combinedMediaMap.get(id);
-            existingKey = id;
-          }
+        }
+        
+        // If still not found, check by ID (fallback)
+        if (!existing && combinedMediaMap.has(id)) {
+          existing = combinedMediaMap.get(id);
+          existingKey = id;
         }
         
         if (existing) {
@@ -801,6 +1044,11 @@ function PostScreen() {
             existing.duration = duration;
           }
           
+          // Update size if missing (important for deduplication)
+          if (fileSize && !existing.size) {
+            existing.size = fileSize;
+          }
+          
           // Update source if this is better (prefer cameraroll for metadata)
           if (existing.source === 'mediastore') {
             existing.source = 'both'; // Mark as from both sources
@@ -822,8 +1070,8 @@ function PostScreen() {
             }
           }
           
-          // Use normalized path as key if available, otherwise use ID
-          const finalKey = normalizedPath || id;
+          // Use mapKey (filename + timestamp) as key for consistent deduplication
+          const finalKey = mapKey;
           combinedMediaMap.set(finalKey, {
             id,
             uri: finalVideoUri, // Always use actual video URI for videos
@@ -832,6 +1080,7 @@ function PostScreen() {
             type: isVideo ? 'video' : 'image',
             isVideo: isVideo, // Explicitly set boolean
             duration: duration,
+            size: fileSize || null, // Preserve size for better deduplication
             isAddButton: false,
             created: createdTimestamp, // Always a number in milliseconds
             source: 'cameraroll',
@@ -840,23 +1089,156 @@ function PostScreen() {
         }
       });
 
-      // Convert map to array and sort by creation time (newest first)
+      // Final deduplication pass - remove any remaining duplicates by comprehensive check
+      // Use Set-based approach for faster duplicate detection
+      const finalMediaArray = [];
+      const seenPaths = new Set(); // Track normalized paths
+      const seenThumbnailPaths = new Set(); // Track thumbnail URIs to prevent them appearing as separate items
+      const seenFileSizes = new Map(); // Track filename + size combinations
+      
+      Array.from(combinedMediaMap.values()).forEach(item => {
+        // Create multiple identifiers for this item
+        const normalizedPath = normalizeUriPath(item.uri || '');
+        const fileName = extractFilename(item.uri, item.fileName);
+        
+        // Normalize path more aggressively for better matching
+        const normalizePath = (path) => {
+          if (!path) return '';
+          return path.toLowerCase()
+            .replace(/^file:\/\//i, '')
+            .replace(/^content:\/\//i, '')
+            .replace(/^ph:\/\//i, '')
+            .replace(/\\/g, '/')
+            .trim();
+        };
+        
+        const aggNormPath = normalizePath(item.uri);
+        
+        // Normalize thumbnail URI if present
+        const normalizedThumbnailPath = item.thumbnailUri ? normalizePath(item.thumbnailUri) : null;
+        
+        // Check if we've seen this file before using multiple methods
+        let isDuplicate = false;
+        
+        // CRITICAL: Check if this item's URI matches a thumbnail URI of an existing item
+        // This prevents video thumbnails from appearing as separate photos
+        if (!isDuplicate && normalizedPath && normalizedPath.length > 5) {
+          if (seenThumbnailPaths.has(normalizedPath)) {
+            // This item's URI is already used as a thumbnail by another item (likely a video)
+            // Skip it to prevent duplicate thumbnail display
+            isDuplicate = true;
+          }
+        }
+        
+        // Check 1: Normalized path
+        if (!isDuplicate && normalizedPath && normalizedPath.length > 5) {
+          if (seenPaths.has(normalizedPath)) {
+            isDuplicate = true;
+          } else {
+            seenPaths.add(normalizedPath);
+          }
+        }
+        
+        // Check 2: Aggressively normalized path
+        if (!isDuplicate && aggNormPath && aggNormPath.length > 5) {
+          if (seenPaths.has(aggNormPath)) {
+            isDuplicate = true;
+          } else {
+            seenPaths.add(aggNormPath);
+          }
+        }
+        
+        // Check 3: Filename + size (very reliable for duplicates)
+        if (!isDuplicate && fileName && fileName.length > 3 && item.size) {
+          const fileSizeKey = `${fileName}_${item.size}`;
+          if (seenFileSizes.has(fileSizeKey)) {
+            // Check if it's really a duplicate by comparing with existing
+            const existingItem = seenFileSizes.get(fileSizeKey);
+            if (isSameFile(item, existingItem)) {
+              isDuplicate = true;
+            }
+          } else {
+            seenFileSizes.set(fileSizeKey, item);
+          }
+        }
+        
+        // Check 4: Comprehensive isSameFile check against all existing items
+        if (!isDuplicate) {
+          for (const existingItem of finalMediaArray) {
+            if (isSameFile(item, existingItem)) {
+              isDuplicate = true;
+              break;
+            }
+            
+            // CRITICAL: Also check if this item's URI matches existing item's thumbnail URI
+            // This catches cases where a thumbnail image is also scanned as a standalone photo
+            if (item.uri && existingItem.thumbnailUri) {
+              const itemUriNorm = normalizePath(item.uri);
+              const existingThumbNorm = normalizePath(existingItem.thumbnailUri);
+              if (itemUriNorm && existingThumbNorm && itemUriNorm === existingThumbNorm && itemUriNorm.length > 5) {
+                // This item is actually a thumbnail of an existing item (likely a video)
+                // Skip it to prevent duplicate
+                isDuplicate = true;
+                break;
+              }
+            }
+            
+            // Also check reverse: if existing item's URI matches this item's thumbnail
+            if (existingItem.uri && item.thumbnailUri) {
+              const existingUriNorm = normalizePath(existingItem.uri);
+              const itemThumbNorm = normalizePath(item.thumbnailUri);
+              if (existingUriNorm && itemThumbNorm && existingUriNorm === itemThumbNorm && existingUriNorm.length > 5) {
+                // Existing item is a thumbnail of this item
+                // But we should keep the one with the actual media URI (video), not the thumbnail
+                // If this item is a video and existing is an image, keep this one
+                if (item.isVideo && !existingItem.isVideo) {
+                  // Remove the existing thumbnail item and keep this video
+                  const existingIndex = finalMediaArray.indexOf(existingItem);
+                  if (existingIndex > -1) {
+                    finalMediaArray.splice(existingIndex, 1);
+                  }
+                  // Continue with this item (don't mark as duplicate)
+                } else {
+                  // This item is likely a thumbnail, skip it
+                  isDuplicate = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        // Only add if not duplicate
+        if (!isDuplicate) {
+          finalMediaArray.push(item);
+          
+          // Track thumbnail URI if this item is a video with a separate thumbnail
+          // This helps prevent the thumbnail from appearing as a separate photo
+          if (item.isVideo && normalizedThumbnailPath && normalizedThumbnailPath !== normalizedPath && normalizedThumbnailPath.length > 5) {
+            seenThumbnailPaths.add(normalizedThumbnailPath);
+          }
+        }
+      });
+      
+      console.log(`✅ Deduplication: ${combinedMediaMap.size} → ${finalMediaArray.length} items (removed ${combinedMediaMap.size - finalMediaArray.length} duplicates)`);
+      
+      // Convert final deduplicated array and sort by creation time (newest first)
       // Ensure all items have valid timestamps, and sort properly
-      const mediaItems = Array.from(combinedMediaMap.values())
+      const mediaItems = finalMediaArray
         .filter(item => {
           // Filter out items without valid URIs
           if (!item.uri || item.uri.trim().length === 0) {
             return false;
           }
           
-          // Filter out trashed files and invalid paths
+          // Filter out trashed files and invalid paths (silently skip - no console spam)
           const uri = item.uri.toLowerCase();
           if (uri.includes('.trashed') || 
               uri.includes('/.thumbnails') ||
               uri.includes('trashed-') ||
               item.fileName?.startsWith('.trashed') ||
               item.fileName?.startsWith('.')) {
-            console.warn(`⚠️ Skipping trashed/invalid file: ${item.uri?.substring(0, 80)}`);
+            // Silently skip trashed files - no console warning (expected behavior)
             return false;
           }
           
@@ -931,80 +1313,20 @@ function PostScreen() {
           return bTime - aTime; // Descending order (newest first)
         });
 
-      // Log summary with timestamp info
-      const videoCount = mediaItems.filter(m => m.isVideo).length;
-      const imageCount = mediaItems.filter(m => !m.isVideo).length;
-      const totalDuplicates = duplicateCount + cameraRollDuplicateCount;
-      console.log(`📊 Combined media: ${imageCount} images, ${videoCount} videos`);
-      console.log(`📊 Total items from MediaStoreService: ${mediaStoreItems.length}`);
-      console.log(`📊 Total items from CameraRoll: ${cameraRollItems.length}`);
-      console.log(`📊 Duplicates detected and merged: ${totalDuplicates} (MediaStore: ${duplicateCount}, CameraRoll: ${cameraRollDuplicateCount})`);
-      console.log(`📊 Final combined items (after deduplication): ${mediaItems.length}`);
-      
-      // Debug: Show first few items with their timestamps
-      if (mediaItems.length > 0) {
-        const sampleItems = mediaItems.slice(0, 10); // Show first 10 for better debugging
-        console.log(`📅 Latest items (first 10):`, sampleItems.map((item, idx) => ({
-          index: idx,
-          type: item.type,
-          isVideo: item.isVideo,
-          created: item.created,
-          createdDate: new Date(item.created).toISOString(),
-          source: item.source,
-          hasUri: !!item.uri,
-          uriPrefix: item.uri?.substring(0, 50)
-        })));
-      }
-      
-      // Debug videos - check all sources
-      const videos = mediaItems.filter(m => m.isVideo);
-      const videosFromMediaStore = mediaStoreItems.filter(m => m.isVideo || m.type === 'video');
-      const videosFromCameraRoll = cameraRollItems.filter(e => {
-        const node = e.node;
-        return node.type === 'video' || node.video || node.mediaType === 'video';
-      });
-      
-      console.log(`🎥 Videos from MediaStoreService: ${videosFromMediaStore.length}`);
-      console.log(`🎥 Videos from CameraRoll: ${videosFromCameraRoll.length}`);
-      console.log(`🎥 Final combined videos: ${videos.length}`);
-      
-      if (videos.length > 0) {
-        console.log(`✅ Found ${videos.length} videos total!`);
-        videos.slice(0, 10).forEach((v, idx) => {
-          console.log(`🎥 Video ${idx + 1}:`, {
-            uri: v.uri?.substring(0, 80),
-            type: v.type,
-            isVideo: v.isVideo,
-            hasUri: !!v.uri,
-            source: v.source,
-            duration: v.duration,
-            created: new Date(v.created).toISOString()
-          });
-        });
-      } else {
-        console.log('⚠️ NO VIDEOS FOUND after combining sources!');
-        console.log('⚠️ MediaStoreService videos:', videosFromMediaStore.map(v => ({ uri: v.uri?.substring(0, 50), isVideo: v.isVideo, type: v.type })));
-        console.log('⚠️ CameraRoll videos:', videosFromCameraRoll.map((e, i) => ({ 
-          index: i,
-          type: e.node.type,
-          hasVideo: !!e.node.video,
-          mediaType: e.node.mediaType
-        })));
-      }
-
-      // Store in Redux
+      // Update allMedia in Redux
       dispatch(setAllMedia(mediaItems));
       
-      // Apply initial filter
+      // Get current filter and apply it
+      const currentFilter = selectedFilter || 'Recents';
+      const filteredItems = getFilteredMedia(mediaItems, currentFilter);
+      
       const initialGallery = [
         { id: 'camera', isAddButton: true },
-        ...mediaItems,
+        ...filteredItems,
       ];
+      
       dispatch(setGalleryMedia(initialGallery));
-
-      console.log(`✅ Loaded ${mediaItems.length} media items (combined)`);
     } catch (error) {
-      console.error('❌ Error loading gallery images:', error);
       dispatch(setError(error.message));
       dispatch(setGalleryMedia([{ id: 'camera', isAddButton: true }]));
       
@@ -1018,108 +1340,65 @@ function PostScreen() {
     } finally {
       dispatch(setLoading(false));
     }
-  }, [dispatch, checkStoragePermission, requestStoragePermission]);
+  }, [dispatch, checkStoragePermission, requestStoragePermission, selectedFilter, getFilteredMedia]);
 
-  // Apply filter to gallery
-  const applyFilter = useCallback((mediaItems, filterType) => {
-    let filtered = [];
+  // Handle filter selection - FIXED: Direct synchronous update
+  const handleFilterSelect = useCallback((filterType) => {
+    console.log('═══════════════════════════════════════');
+    console.log('🔍 FILTER SELECTION - STARTING');
+    console.log('🔍 Filter Type:', filterType);
+    console.log('🔍 All Media Count:', allMedia?.length || 0);
     
-    switch (filterType) {
-      case 'Photos':
-        filtered = mediaItems.filter(item => item.type === 'image' || (!item.isVideo && item.type !== 'video'));
-        break;
-      case 'Videos':
-        // Filter videos - check multiple indicators
-        filtered = mediaItems.filter(item => {
-          if (!item || !item.uri) return false;
-          
-          // Check explicit flags
-          const isVideoByType = item.type === 'video' || item.isVideo === true;
-          
-          // Check URI extension
-          const uriHasVideoExtension = /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.uri);
-          
-          // Check filename
-          const fileNameIsVideo = item.fileName && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(item.fileName);
-          
-          // Check URI path for video keywords
-          const uriHasVideoKeyword = item.uri.toLowerCase().includes('video') || 
-                                     item.uri.toLowerCase().includes('movie') ||
-                                     item.uri.toLowerCase().includes('/dcim/camera/') && uriHasVideoExtension;
-          
-          const isVideo = isVideoByType || uriHasVideoExtension || fileNameIsVideo || uriHasVideoKeyword;
-          
-          if (isVideo) {
-            // Ensure flags are set correctly
-            item.isVideo = true;
-            item.type = 'video';
-          }
-          
-          return isVideo;
-        });
-        
-        console.log(`🎥 Filtering videos: Total items: ${mediaItems.length}, Videos found: ${filtered.length}`);
-        
-        // Debug breakdown
-        const byType = mediaItems.filter(i => i.type === 'video' || i.isVideo === true).length;
-        const byUri = mediaItems.filter(i => i.uri && /\.(mp4|mov|avi|mkv|3gp|wmv|flv|webm|m4v|quicktime)$/i.test(i.uri)).length;
-        console.log(`🎥 Videos by type flag: ${byType}, Videos by URI extension: ${byUri}`);
-        
-        if (filtered.length > 0) {
-          console.log(`✅ SUCCESS! Found ${filtered.length} videos in filter`);
-          console.log(`🎥 Sample video items:`, filtered.slice(0, 10).map((v, idx) => ({ 
-            index: idx,
-            type: v.type, 
-            isVideo: v.isVideo, 
-            hasUri: !!v.uri,
-            uri: v.uri?.substring(0, 100),
-            fileName: v.fileName,
-            source: v.source
-          })));
-        } else {
-          console.log('❌ NO VIDEOS FOUND IN FILTER!');
-          // Show why videos might not be detected
-          const allItemsSample = mediaItems.slice(0, 20);
-          console.log('📋 Sample of first 20 items:', allItemsSample.map((item, idx) => ({
-            index: idx,
-            type: item.type,
-            isVideo: item.isVideo,
-            uri: item.uri?.substring(0, 60),
-            fileName: item.fileName
-          })));
-        }
-        break;
-      case 'All albums':
-        filtered = mediaItems;
-        break;
-      case 'Recents':
-      default:
-        filtered = mediaItems;
-        break;
+    // STEP 1: Update local state for instant text change
+    setLocalSelectedFilter(filterType);
+    setShowRecentsDropdown(false);
+    
+    // STEP 2: Update Redux filter state
+    dispatch(setSelectedFilter(filterType));
+    
+    // STEP 3: Get media and filter it
+    const currentMedia = allMedia && Array.isArray(allMedia) ? allMedia : [];
+    
+    if (currentMedia.length === 0) {
+      console.log('⚠️ No media loaded - setting empty gallery');
+      dispatch(setGalleryMedia([{ id: 'camera', isAddButton: true }]));
+      return;
     }
-
-    // Add camera button as first item and update Redux
+    
+    // STEP 4: Apply filter
+    let filtered = [];
+    try {
+      filtered = getFilteredMedia(currentMedia, filterType);
+      console.log('✅ Filter applied:', {
+        input: currentMedia.length,
+        output: filtered.length,
+        type: filterType
+      });
+    } catch (error) {
+      console.error('❌ Filter error:', error);
+      return;
+    }
+    
+    // STEP 5: Update gallery with filtered results
     const filteredGallery = [
       { id: 'camera', isAddButton: true },
       ...filtered,
     ];
+    
+    console.log('✅ Updating gallery with', filteredGallery.length, 'items');
+    
+    // CRITICAL: Update Redux gallery state
     dispatch(setGalleryMedia(filteredGallery));
-  }, [dispatch]);
+    
+    console.log('✅✅✅ FILTER COMPLETE - Gallery should update now');
+    console.log('═══════════════════════════════════════');
+  }, [dispatch, allMedia, getFilteredMedia]);
 
-  // Handle filter selection
-  const handleFilterSelect = useCallback((filterType) => {
-    dispatch(setSelectedFilter(filterType));
-    setShowRecentsDropdown(false);
-    
-    // Debug before filtering
-    if (filterType === 'Videos') {
-      console.log(`🎥 Filtering for videos. All media count: ${allMedia.length}`);
-      const videosInAll = allMedia.filter(m => m.type === 'video' || m.isVideo);
-      console.log(`🎥 Videos in allMedia: ${videosInAll.length}`);
-    }
-    
-    applyFilter(allMedia, filterType);
-  }, [dispatch, allMedia, applyFilter]);
+  // DISABLED: useEffect filter sync - handleFilterSelect now handles everything instantly
+  // This was causing conflicts - filter is now handled directly in handleFilterSelect
+  // useEffect(() => {
+  //   // Filter sync disabled - handled by handleFilterSelect for instant response
+  // }, [selectedFilter, allMedia?.length]);
 
   // Load gallery on initial mount
   useEffect(() => {
@@ -1154,8 +1433,39 @@ function PostScreen() {
   };
 
   const handleNext = () => {
-    // Handle next button press
-    console.log('Next pressed');
+    // Check if there are multiple selected images
+    const hasMultipleSelections = selectedImageIds && selectedImageIds.length > 0;
+    
+    if (hasMultipleSelections) {
+      // Get the actual media items from galleryMedia using selected IDs
+      const selectedMediaItems = galleryMedia.filter(item => 
+        !item.isAddButton && selectedImageIds.includes(item.id)
+      );
+      
+      if (selectedMediaItems.length === 0) {
+        Alert.alert('No Selection', 'Please select at least one image or video.');
+        return;
+      }
+      
+      // Navigate with multiple media items
+      navigation.navigate('CropFilter', {
+        mediaItems: selectedMediaItems,
+        isMultiple: true,
+      });
+      
+      console.log('📸 Navigating with multiple items:', selectedMediaItems.length);
+    } else if (selectedPreviewItem) {
+      // Navigate with single preview item
+      navigation.navigate('CropFilter', {
+        mediaItems: [selectedPreviewItem],
+        isMultiple: false,
+        imageUri: selectedPreviewItem.uri, // Keep for backward compatibility
+      });
+      
+      console.log('📸 Navigating with single item:', selectedPreviewItem.uri);
+    } else {
+      Alert.alert('No Selection', 'Please select an image or video to continue.');
+    }
   };
 
   const handleTabPress = (tab) => {
@@ -1180,10 +1490,82 @@ function PostScreen() {
   };
 
   // Handle image press
+  // Handle camera button press - open camera with permission check
+  const handleCameraPress = useCallback(async () => {
+    // Check and request camera permission
+    const hasPermission = await requestCameraPermission();
+    
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Denied',
+        'Camera permission is required to take photos and videos. Please enable camera permission in your device settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Settings',
+            onPress: () => {
+              Linking.openSettings();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Open camera with options
+    const options = {
+      mediaType: 'mixed', // Allow both photo and video
+      includeBase64: false,
+      quality: 0.8,
+      videoQuality: 'high',
+      saveToPhotos: true, // Save captured media to gallery
+    };
+
+    launchCamera(options, (response) => {
+      if (response.didCancel) {
+        console.log('User cancelled camera');
+        return;
+      }
+
+      if (response.errorCode) {
+        console.error('Camera Error:', response.errorMessage);
+        Alert.alert('Camera Error', response.errorMessage || 'Failed to open camera. Please try again.');
+        return;
+      }
+
+      if (response.assets && response.assets[0]) {
+        const asset = response.assets[0];
+        const isVideo = asset.type?.includes('video') || asset.uri?.includes('.mp4') || asset.uri?.includes('.mov');
+        
+        // Create preview item from captured media
+        const capturedItem = {
+          id: `camera_${Date.now()}`,
+          uri: asset.uri,
+          thumbnailUri: isVideo ? asset.uri : asset.uri, // For videos, use same URI as thumbnail
+          fileName: asset.fileName || (isVideo ? `camera_video_${Date.now()}.mp4` : `camera_photo_${Date.now()}.jpg`),
+          type: isVideo ? 'video' : 'image',
+          isVideo: isVideo,
+          duration: asset.duration || null,
+          created: asset.timestamp || Date.now(),
+          size: asset.fileSize || null,
+          source: 'camera',
+        };
+
+        // Set as preview item
+        dispatch(setSelectedPreviewItem(capturedItem));
+        
+        console.log('📸 Camera media captured:', {
+          type: isVideo ? 'video' : 'photo',
+          uri: asset.uri,
+        });
+      }
+    });
+  }, [requestCameraPermission, dispatch]);
+
   const handleImagePress = (item) => {
     if (item.isAddButton) {
-      // Handle camera press
-      console.log('Camera pressed');
+      // Handle camera press - open camera with permission check
+      handleCameraPress();
       return;
     }
 
@@ -1262,36 +1644,6 @@ function PostScreen() {
     }
   };
 
-  // Handle scroll to show/hide preview
-  const handleScroll = useCallback((event) => {
-    const currentScrollY = event.nativeEvent.contentOffset.y;
-    const scrollDifference = currentScrollY - lastScrollY;
-    
-    // Threshold for scroll detection (to avoid flickering)
-    const scrollThreshold = 10;
-    
-    if (scrollDifference > scrollThreshold && currentScrollY > 50) {
-      // Scrolling down - hide preview
-      if (showPreview && selectedPreviewItem) {
-        setShowPreview(false);
-      }
-    } else if (scrollDifference < -scrollThreshold) {
-      // Scrolling up - show preview
-      if (!showPreview && selectedPreviewItem) {
-        setShowPreview(true);
-      }
-    }
-    
-    setLastScrollY(currentScrollY);
-  }, [lastScrollY, showPreview, selectedPreviewItem]);
-
-  // Reset preview visibility when new item is selected
-  useEffect(() => {
-    if (selectedPreviewItem) {
-      setShowPreview(true);
-      setLastScrollY(0);
-    }
-  }, [selectedPreviewItem]);
 
   return (
     <CommonBackground>
@@ -1317,8 +1669,8 @@ function PostScreen() {
           <Text style={styles.nextButtonText}>Next</Text>
         </TouchableOpacity>
       </View>
-  {/* Preview Section - Half Screen */}
-  {selectedPreviewItem && showPreview && (
+  {/* Preview Section - Always visible when item is selected */}
+  {selectedPreviewItem && (
         <View style={styles.previewContainer}>
           <TouchableOpacity
             style={styles.previewCloseButton}
@@ -1422,7 +1774,7 @@ function PostScreen() {
             onPress={() => setShowRecentsDropdown(!showRecentsDropdown)}
               activeOpacity={0.7}
             >
-            <Text style={styles.recentsText}>{selectedFilter}</Text>
+            <Text style={styles.recentsText}>{localSelectedFilter || selectedFilter || 'Recents'}</Text>
             <View style={{ marginLeft: 4 }}>
               <ChevronDownIcon width={16} height={16} color="white" />
             </View>
@@ -1517,12 +1869,10 @@ function PostScreen() {
           ref={scrollViewRef}
           style={[
             styles.scrollView,
-            selectedPreviewItem && showPreview && styles.scrollViewWithPreview
+            selectedPreviewItem && styles.scrollViewWithPreview
           ]}
           contentContainerStyle={styles.imageGrid}
           showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
         >
           {galleryMedia.map((item) => {
             const isSelected = selectedImageIds.includes(item.id);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,10 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
+import SwiperFlatList from 'react-native-swiper-flatlist';
+import Video from 'react-native-video';
 import { setCurrentScreen, hideTabBar, showTabBar } from '../../../redux/slices/uiSlice';
+import CustomButton from '../../../components/common/CustomButton';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -91,50 +94,93 @@ function FilterScreen() {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
+  const swiperRef = useRef(null);
 
-  const { croppedImage } = route.params || {};
-  const [selectedFilter, setSelectedFilter] = useState('default');
+  const { 
+    croppedImage, 
+    mediaItems, 
+    isMultiple,
+    caption,
+    location,
+    likeVisibility,
+    commentVisibility,
+  } = route.params || {};
+  
+  // Prepare display media items - support both single and multiple images
+  const displayMediaItems = React.useMemo(() => {
+    if (mediaItems && mediaItems.length > 0) {
+      return mediaItems;
+    } else if (croppedImage?.uri) {
+      return [{ uri: croppedImage.uri, type: 'image' }];
+    }
+    return [];
+  }, [mediaItems, croppedImage]);
+
+  // Store filter for each image (index-based)
+  const [imageFilters, setImageFilters] = useState({});
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [imageUri, setImageUri] = useState(croppedImage?.uri || null);
+  
+  // Get current image and its filter
+  const currentImage = displayMediaItems[currentIndex];
+  const currentImageUri = currentImage?.uri;
+  const selectedFilter = imageFilters[currentIndex] || 'default';
 
   // Redux-based tab bar hiding when FilterScreen is focused
   useFocusEffect(
-    useCallback(() => {
+    React.useCallback(() => {
       console.log('🎨 FilterScreen Focused - Hiding TabBar');
       dispatch(setCurrentScreen('Filter'));
       dispatch(hideTabBar());
-
+      
       return () => {
         console.log('🎨 FilterScreen Unfocused - Showing TabBar');
         dispatch(showTabBar());
         dispatch(setCurrentScreen(null));
       };
-    }, [dispatch])
+    }, [navigation, dispatch])
   );
 
-  useEffect(() => {
-    if (croppedImage?.uri) {
-      setImageUri(croppedImage.uri);
-      // Simulate image loading
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 500);
-    }
-  }, [croppedImage]);
+  useLayoutEffect(() => {
+    dispatch(setCurrentScreen('Filter'));
+    dispatch(hideTabBar());
 
-  const handleFilterSelect = (filterId) => {
-    setSelectedFilter(filterId);
-    setIsLoading(true);
-    // Simulate filter processing
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 200);
-  };
+    return () => {
+      dispatch(showTabBar());
+      dispatch(setCurrentScreen(null));
+    };
+  }, [dispatch]);
+
+  useEffect(() => {
+    // Initialize filters for all images to 'default'
+    if (displayMediaItems.length > 0) {
+      const initialFilters = {};
+      displayMediaItems.forEach((_, index) => {
+        initialFilters[index] = 'default';
+      });
+      setImageFilters(initialFilters);
+    }
+    // Set loading to false immediately - images are already loaded
+    setIsLoading(false);
+  }, [displayMediaItems]);
+
+  const handleFilterSelect = useCallback((filterId) => {
+    // Apply filter to current image - instant, no loading needed
+    setImageFilters(prev => ({
+      ...prev,
+      [currentIndex]: filterId,
+    }));
+  }, [currentIndex]);
 
   const handleBack = () => {
     dispatch(showTabBar());
     dispatch(setCurrentScreen(null));
-    navigation.goBack();
+    
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('PostMain');
+    }
   };
 
   const handleAdd = () => {
@@ -144,7 +190,13 @@ function FilterScreen() {
 
   const handleUploadVibes = () => {
     console.log('Upload Vibes button pressed');
-    // Navigate to PostEdit or final upload screen with filtered image
+    // Prepare filtered media items with their respective filters
+    const filteredMediaItems = displayMediaItems.map((item, index) => ({
+      ...item,
+      filter: imageFilters[index] || 'default',
+    }));
+
+    // Navigate to PostEdit or final upload screen with all filtered images
     const rootNavigator = navigation.getParent()?.getParent();
     if (rootNavigator) {
       rootNavigator.navigate('Main', {
@@ -152,27 +204,68 @@ function FilterScreen() {
         params: {
           screen: 'PostEdit',
           params: {
-            croppedImage: {
-              ...croppedImage,
-              uri: imageUri,
-            },
-            selectedFilter: selectedFilter,
+            mediaItems: filteredMediaItems,
+            isMultiple: isMultiple || filteredMediaItems.length > 1,
+            caption,
+            location,
+            likeVisibility,
+            commentVisibility,
           },
         },
       });
     } else {
       navigation.navigate('PostEdit', {
-        croppedImage: {
-          ...croppedImage,
-          uri: imageUri,
-        },
-        selectedFilter: selectedFilter,
+        mediaItems: filteredMediaItems,
+        isMultiple: isMultiple || filteredMediaItems.length > 1,
+        caption,
+        location,
+        likeVisibility,
+        commentVisibility,
       });
     }
   };
 
-  const renderFilteredImage = () => {
-    if (!imageUri) {
+  const renderFilteredImage = useCallback(({ item, index }) => {
+    const imageFilter = imageFilters[index] || 'default';
+    const filterConfig = FILTERS.find((f) => f.id === imageFilter);
+    const isVideo = item.isVideo || item.type === 'video';
+
+    return (
+      <View style={styles.imageWrapper}>
+        {isVideo ? (
+          <Video
+            source={{ uri: item.uri }}
+            style={styles.fullScreenImage}
+            resizeMode="cover"
+            paused={true}
+            muted={true}
+            poster={item.uri}
+          />
+        ) : (
+          <Image
+            source={{ uri: item.uri }}
+            style={styles.fullScreenImage}
+            resizeMode="cover"
+            cache="force-cache"
+          />
+        )}
+        {filterConfig && filterConfig.overlayColor && (
+          <View
+            style={[
+              styles.filterOverlay,
+              {
+                backgroundColor: filterConfig.overlayColor,
+                opacity: filterConfig.opacity || 0.5,
+              },
+            ]}
+          />
+        )}
+      </View>
+    );
+  }, [imageFilters]);
+
+  const renderImageContainer = () => {
+    if (displayMediaItems.length === 0) {
       return (
         <View style={styles.placeholderImage}>
           <Text style={styles.placeholderText}>No Image Selected</Text>
@@ -180,34 +273,35 @@ function FilterScreen() {
       );
     }
 
-    const selectedFilterConfig = FILTERS.find((f) => f.id === selectedFilter);
+    if (displayMediaItems.length === 1) {
+      // Single image - no swiper needed
+      return renderFilteredImage({ item: displayMediaItems[0], index: 0 });
+    }
 
+    // Multiple images - use swiper
     return (
-      <View style={styles.imageWrapper}>
-        <Image
-          source={{ uri: imageUri }}
-          style={styles.fullScreenImage}
-          resizeMode="cover"
-        />
-        {selectedFilterConfig && selectedFilterConfig.overlayColor && (
-          <View
-            style={[
-              styles.filterOverlay,
-              {
-                backgroundColor: selectedFilterConfig.overlayColor,
-                opacity: selectedFilterConfig.opacity || 0.5,
-              },
-            ]}
-          />
-        )}
-      </View>
+      <SwiperFlatList
+        ref={swiperRef}
+        data={displayMediaItems}
+        renderItem={renderFilteredImage}
+        horizontal
+        showPagination={true}
+        paginationDefaultColor="rgba(255, 255, 255, 0.3)"
+        paginationActiveColor="#DD3562"
+        paginationStyle={styles.paginationStyle}
+        paginationStyleItem={styles.paginationItem}
+        onChangeIndex={({ index }) => {
+          setCurrentIndex(index);
+        }}
+        style={styles.swiper}
+      />
     );
   };
 
-  const renderFilterThumbnail = (filter) => {
+  const renderFilterThumbnail = useCallback((filter) => {
     const isSelected = filter.id === selectedFilter;
 
-    if (!imageUri) {
+    if (!currentImageUri) {
       return (
         <View style={[styles.filterThumbnail, isSelected && styles.selectedFilterThumbnail]}>
           <View style={styles.filterThumbnailPlaceholder}>
@@ -228,35 +322,40 @@ function FilterScreen() {
     if (filter.id === 'default') {
       return (
         <TouchableOpacity
-          style={[
-            styles.filterThumbnail,
-            isSelected && styles.selectedFilterThumbnail,
-          ]}
+          style={styles.filterItemContainer}
           onPress={() => handleFilterSelect(filter.id)}
         >
-          <View style={styles.defaultFilterContainer}>
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.filterThumbnailImage}
-              resizeMode="cover"
-            />
-            <View style={styles.defaultFilterOverlay}>
-              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20Z"
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <Path
-                  d="M12 7V12L15 15"
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
+          <View
+            style={[
+              styles.filterThumbnail,
+              isSelected && styles.selectedFilterThumbnail,
+            ]}
+          >
+            <View style={styles.defaultFilterContainer}>
+              <Image
+                source={{ uri: currentImageUri }}
+                style={styles.filterThumbnailImage}
+                resizeMode="cover"
+                cache="force-cache"
+              />
+              <View style={styles.defaultFilterOverlay}>
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                  <Path
+                    d="M12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20Z"
+                    stroke="white"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <Path
+                    d="M12 7V12L15 15"
+                    stroke="white"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </Svg>
+              </View>
             </View>
           </View>
           <Text
@@ -273,29 +372,34 @@ function FilterScreen() {
 
     return (
       <TouchableOpacity
-        style={[
-          styles.filterThumbnail,
-          isSelected && styles.selectedFilterThumbnail,
-        ]}
+        style={styles.filterItemContainer}
         onPress={() => handleFilterSelect(filter.id)}
       >
-        <View style={styles.filterThumbnailWrapper}>
-          <Image
-            source={{ uri: imageUri }}
-            style={styles.filterThumbnailImage}
-            resizeMode="cover"
-          />
-          {filter.overlayColor && (
-            <View
-              style={[
-                styles.filterThumbnailOverlay,
-                {
-                  backgroundColor: filter.overlayColor,
-                  opacity: filter.opacity || 0.5,
-                },
-              ]}
+        <View
+          style={[
+            styles.filterThumbnail,
+            isSelected && styles.selectedFilterThumbnail,
+          ]}
+        >
+          <View style={styles.filterThumbnailWrapper}>
+            <Image
+              source={{ uri: currentImageUri }}
+              style={styles.filterThumbnailImage}
+              resizeMode="cover"
+              cache="force-cache"
             />
-          )}
+            {filter.overlayColor && (
+              <View
+                style={[
+                  styles.filterThumbnailOverlay,
+                  {
+                    backgroundColor: filter.overlayColor,
+                    opacity: filter.opacity || 0.5,
+                  },
+                ]}
+              />
+            )}
+          </View>
         </View>
         <Text
           style={[
@@ -307,7 +411,7 @@ function FilterScreen() {
         </Text>
       </TouchableOpacity>
     );
-  };
+  }, [selectedFilter, currentImageUri, handleFilterSelect]);
 
   return (
     <View style={styles.container}>
@@ -315,17 +419,7 @@ function FilterScreen() {
 
       {/* Full Screen Image Container */}
       <View style={styles.imageContainer}>
-        {renderFilteredImage()}
-
-        {/* Loading Overlay */}
-        {isLoading && (
-          <View style={styles.loadingOverlay}>
-            <View style={styles.loadingContent}>
-              <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.loadingText}>Loading...</Text>
-            </View>
-          </View>
-        )}
+        {renderImageContainer()}
       </View>
 
       {/* Header - Overlay on top */}
@@ -334,12 +428,21 @@ function FilterScreen() {
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <BackIcon width={24} height={24} color="white" />
           </TouchableOpacity>
+          
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Upload Vibes</Text>
+            {displayMediaItems.length > 1 && (
+              <Text style={styles.imageCounter}>
+                {currentIndex + 1} of {displayMediaItems.length}
+              </Text>
+            )}
           </View>
+          
           <View style={styles.headerRight} />
         </View>
       </SafeAreaView>
+
+   
 
       {/* Filters Section - Horizontal Scroll */}
       <View style={styles.filtersSection}>
@@ -364,20 +467,13 @@ function FilterScreen() {
       {/* Bottom Action Buttons */}
       <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
         <View style={styles.bottomContainer}>
-          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
-            <Text style={styles.addButtonText}>Add</Text>
-          </TouchableOpacity>
+         
 
-          <TouchableOpacity style={styles.uploadButton} onPress={handleUploadVibes}>
-            <LinearGradient
-              colors={['#F44363', '#9C27B0']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.uploadGradient}
-            >
-              <Text style={styles.uploadButtonText}>Upload Vibes</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <CustomButton
+            title="Upload Vibes"
+            onPress={handleUploadVibes}
+            style={styles.uploadButton}
+          />
         </View>
       </SafeAreaView>
     </View>
@@ -398,14 +494,28 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#000',
   },
-  imageWrapper: {
+  swiper: {
     width: '100%',
+    height: '100%',
+  },
+  imageWrapper: {
+    width: SCREEN_WIDTH,
     height: '100%',
     position: 'relative',
   },
   fullScreenImage: {
     width: '100%',
     height: '100%',
+  },
+  paginationStyle: {
+    position: 'absolute',
+    top: 20,
+    alignSelf: 'center',
+  },
+  paginationItem: {
+    width: 8,
+    height: 8,
+    marginHorizontal: 4,
   },
   filterOverlay: {
     position: 'absolute',
@@ -460,8 +570,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    paddingTop: 30,
+    paddingTop: 50,
     backgroundColor: '#140034',
+    borderBottomWidth: 1,
+    borderBottomColor: '#281A62',
+    justifyContent: 'space-between',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerRight: {
+    width: 40,
+  },
+  imageCounter: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    marginTop: 2,
   },
   backButton: {
     padding: 5,
@@ -470,18 +596,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
-  headerCenter: {
+  progressIndicator: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+  },
+  progressLine: {
+    height: 2,
+    width: 30,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 1,
+  },
+  progressLineActive: {
+    width: 50,
+    backgroundColor: '#DD3562',
   },
   headerTitle: {
-    color: '#F44363',
-    fontSize: 18,
+    color: '#DD3562',
+    fontSize: 16,
     fontWeight: '600',
   },
-  headerRight: {
-    width: 40,
+  defaultFilterButtonContainer: {
+    position: 'absolute',
+    bottom: SCREEN_HEIGHT * 0.25,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  defaultFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  defaultFilterButtonActive: {
+    backgroundColor: 'rgba(221, 53, 98, 0.3)',
+    borderColor: '#DD3562',
+  },
+  defaultFilterButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
   },
   filtersSection: {
     position: 'absolute',
@@ -503,6 +668,10 @@ const styles = StyleSheet.create({
   filterItemWrapper: {
     marginRight: 12,
   },
+  filterItemContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   filterThumbnail: {
     width: SCREEN_WIDTH * 0.18,
     height: SCREEN_HEIGHT * 0.08,
@@ -513,12 +682,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
   },
   selectedFilterThumbnail: {
-    borderColor: '#F44363',
+    borderColor: '#DD3562',
     borderWidth: 3,
-    backgroundColor: 'rgba(244, 67, 99, 0.3)',
+    backgroundColor: 'rgba(221, 53, 98, 0.3)',
   },
   filterThumbnailWrapper: {
     width: '100%',
@@ -565,13 +733,13 @@ const styles = StyleSheet.create({
   },
   filterName: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 6,
   },
   selectedFilterName: {
-    color: '#F44363',
+    color: '#DD3562',
     fontWeight: 'bold',
   },
   bottomSafeArea: {
@@ -580,13 +748,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: 'transparent',
+    backgroundColor: '#140034',
   },
   bottomContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 20,
+    paddingBottom: 30,
     gap: 12,
     backgroundColor: '#140034',
   },
@@ -607,18 +775,6 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     flex: 2,
-    borderRadius: 25,
-    overflow: 'hidden',
-  },
-  uploadGradient: {
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-  },
-  uploadButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
 
