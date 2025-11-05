@@ -10,6 +10,10 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
+  Alert,
+  Platform,
+  PermissionsAndroid,
+  Linking,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -18,8 +22,18 @@ import { useDispatch } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import Video from 'react-native-video';
+import ViewShot from 'react-native-view-shot';
 import { setCurrentScreen, hideTabBar, showTabBar } from '../../../redux/slices/uiSlice';
 import CustomButton from '../../../components/common/CustomButton';
+
+// Safely import CameraRoll
+let CameraRoll = null;
+try {
+  const cameraRollModule = require('@react-native-camera-roll/camera-roll');
+  CameraRoll = cameraRollModule.CameraRoll || cameraRollModule.default;
+} catch (error) {
+  console.warn('⚠️ CameraRoll module not available:', error);
+}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -30,6 +44,33 @@ const BackIcon = ({ width = 24, height = 24, color = 'white' }) => (
       d="M15.375 5.25L8.625 12L15.375 18.75"
       stroke={color}
       strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// Download Icon
+const DownloadIcon = ({ width = 24, height = 24, color = 'white' }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M7 10L12 15L17 10"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M12 15V3"
+      stroke={color}
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
@@ -95,6 +136,8 @@ function FilterScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const swiperRef = useRef(null);
+  const viewShotRef = useRef(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const { 
     croppedImage, 
@@ -187,6 +230,104 @@ function FilterScreen() {
     console.log('Add button pressed');
     // Handle add functionality - maybe allow adding more images
   };
+
+  // Request storage permission for Android
+  const requestStoragePermission = useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    try {
+      if (Platform.Version >= 33) {
+        const statuses = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
+        ]);
+        const hasImagesPermission = statuses[PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES] === PermissionsAndroid.RESULTS.GRANTED;
+        const hasVideosPermission = statuses[PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO] === PermissionsAndroid.RESULTS.GRANTED;
+        return hasImagesPermission && hasVideosPermission;
+      } else {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Storage Permission',
+            message: 'This app needs access to save photos to your gallery.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'Allow',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      }
+    } catch (err) {
+      console.warn('Permission request error:', err);
+      return false;
+    }
+  }, []);
+
+  const handleDownload = useCallback(async () => {
+    if (!currentImage || isDownloading) {
+      return;
+    }
+
+    // Check if it's a video - don't download videos
+    if (currentImage.isVideo || currentImage.type === 'video') {
+      Alert.alert('Info', 'Video download is not supported yet.');
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+
+      // Request permission first
+      const hasPermission = await requestStoragePermission();
+      if (!hasPermission) {
+        Alert.alert(
+          'Permission Denied',
+          'Storage permission is required to save photos. Please enable storage permission in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+        setIsDownloading(false);
+        return;
+      }
+
+      // Check if CameraRoll is available
+      if (!CameraRoll || typeof CameraRoll.save !== 'function') {
+        Alert.alert('Error', 'CameraRoll module is not available. Please rebuild the app.');
+        setIsDownloading(false);
+        return;
+      }
+
+      // Capture the filtered image view
+      if (viewShotRef.current) {
+        const uri = await viewShotRef.current.capture();
+        console.log('📸 Captured image URI:', uri);
+
+        // Save to gallery
+        await CameraRoll.save(uri, {
+          type: 'photo',
+          album: 'Vibgyor',
+        });
+
+        Alert.alert('Success', 'Image saved to gallery!');
+      } else {
+        // Fallback: Save original image if viewShot fails
+        await CameraRoll.save(currentImage.uri, {
+          type: 'photo',
+          album: 'Vibgyor',
+        });
+        Alert.alert('Success', 'Image saved to gallery!');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to save image. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [currentImage, isDownloading, requestStoragePermission]);
 
   const handleUploadVibes = () => {
     console.log('Upload Vibes button pressed');
@@ -418,9 +559,13 @@ function FilterScreen() {
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Full Screen Image Container */}
-      <View style={styles.imageContainer}>
+      <ViewShot
+        ref={viewShotRef}
+        options={{ format: 'jpg', quality: 0.9 }}
+        style={styles.imageContainer}
+      >
         {renderImageContainer()}
-      </View>
+      </ViewShot>
 
       {/* Header - Overlay on top */}
       <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
@@ -467,7 +612,23 @@ function FilterScreen() {
       {/* Bottom Action Buttons */}
       <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
         <View style={styles.bottomContainer}>
-         
+          <TouchableOpacity
+            onPress={handleDownload}
+            disabled={isDownloading || !currentImage || currentImage.isVideo || currentImage.type === 'video'}
+            style={[
+              styles.downloadButton,
+              (isDownloading || !currentImage || currentImage.isVideo || currentImage.type === 'video') && styles.downloadButtonDisabled,
+            ]}
+          >
+            {isDownloading ? (
+              <ActivityIndicator size="small" color="#DD3562" />
+            ) : (
+              <>
+                <DownloadIcon width={20} height={20} color="#DD3562" />
+                <Text style={styles.downloadButtonText}>Save</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
           <CustomButton
             title="Upload Vibes"
@@ -775,6 +936,28 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     flex: 2,
+  },
+  downloadButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(221, 53, 98, 0.5)',
+    minHeight: 50,
+  },
+  downloadButtonText: {
+    color: '#DD3562',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  downloadButtonDisabled: {
+    opacity: 0.5,
   },
 });
 

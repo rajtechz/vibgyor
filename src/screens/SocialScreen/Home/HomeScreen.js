@@ -7,7 +7,6 @@ import LinearGradient from 'react-native-linear-gradient';
 import { VerifiedBadge, AccountVerifyBadge, OptionsMenu, PostVibeText, PostVibeIcon, HamburgerIcon } from '../../../components/icons/SvgIcons';
 import VerifyModal from '../../../components/common/VerifyModal';
 import ModeSwitchHeader from '../../../components/common/ModeSwitchHeader';
-import InstagramMediaPicker from '../../../components/common/InstagramMediaPicker';
 import { clearAuthData } from '../../../utils/authUtils';
 import { APP_CONFIG } from '../../../utils/appConfig';
 import PostCard from '../../../components/common/PostCard';
@@ -232,7 +231,6 @@ export default function HomeScreen() {
 
     // Modal state
     const [showVerifyModal, setShowVerifyModal] = useState(false);
-    const [showInstagramPicker, setShowInstagramPicker] = useState(false);
 
     // Pull to refresh state
     const [refreshing, setRefreshing] = useState(false);
@@ -310,10 +308,20 @@ export default function HomeScreen() {
     const handleCarouselCardPress = (item) => {
         console.log('Carousel card pressed:', item.id);
         
-        // Handle AddVibe card - open Instagram-style media picker
+        // Handle AddVibe card - navigate to PostScreen (same gallery as PostScreen.js)
         if (item.isAdd) {
-            console.log('AddVibe card pressed - opening Instagram media picker');
-            setShowInstagramPicker(true);
+            console.log('AddVibe card pressed - navigating to PostScreen');
+            // Navigate to Post tab which contains PostStackNavigator with PostMain (PostScreen)
+            // Get the parent tab navigator (MainTabNavigator) and navigate to Post tab
+            const tabNavigator = navigation.getParent();
+            if (tabNavigator) {
+                tabNavigator.navigate('Post', {
+                    screen: 'PostMain',
+                });
+            } else {
+                // Fallback: try direct navigation
+                navigation.navigate('Post');
+            }
             return;
         }
         
@@ -338,45 +346,7 @@ export default function HomeScreen() {
         navigation.navigate('Story', { storyId: item.id });
     };
 
-    // Handle media selection from Instagram picker
-    const handleMediaSelected = (media) => {
-        console.log('Media selected:', media);
-        Alert.alert(
-            'Media Selected',
-            `Selected: ${media.fileName || 'Unknown'}`,
-            [{ text: 'OK' }]
-        );
-        // Here you can navigate to a post creation screen
-        // navigation.navigate('CreatePost', { media });
-    };
-
-    // Close Instagram picker
-    const handleCloseInstagramPicker = () => {
-        setShowInstagramPicker(false);
-    };
-
-    // Development helper function to reset app state
-    const handleResetApp = () => {
-        const configMessage = APP_CONFIG.ALWAYS_START_FRESH
-            ? 'App is configured to always start fresh (no need to reset).'
-            : 'This will clear all authentication data and restart the app flow.';
-
-        Alert.alert(
-            'Reset App State',
-            `${configMessage} Are you sure?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Reset',
-                    style: 'destructive',
-                    onPress: async () => {
-                        await clearAuthData();
-                        console.log('App state reset. Restart the app to see the auth flow.');
-                    },
-                },
-            ]
-        );
-    };
+  
 
     // Pull to refresh handler
     const onRefresh = async () => {
@@ -518,12 +488,6 @@ export default function HomeScreen() {
             <VerifyModal
                 visible={showVerifyModal}
                 onClose={handleCloseModal}
-            />
-            {/* Instagram Media Picker */}
-            <InstagramMediaPicker
-                visible={showInstagramPicker}
-                onClose={handleCloseInstagramPicker}
-                onMediaSelected={handleMediaSelected}
             />
 
             {/* Notification Bar */}

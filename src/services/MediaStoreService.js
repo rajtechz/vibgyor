@@ -1,6 +1,15 @@
 import { Platform, PermissionsAndroid } from 'react-native';
 import RNFS from 'react-native-fs';
 import { launchImageLibrary } from 'react-native-image-picker';
+import CreateThumbnail from 'react-native-create-thumbnail';
+
+// Normalize timestamp utility - converts seconds to milliseconds if needed
+const normalizeTimestamp = (t) => {
+  if (!t) return Date.now();
+  const n = Number(t);
+  if (isNaN(n) || n <= 0) return Date.now();
+  return n < 10000000000 ? n * 1000 : n; // convert seconds→ms when needed
+};
 
 class MediaStoreService {
   constructor() {
@@ -25,22 +34,32 @@ class MediaStoreService {
     try {
       if (Platform.OS === 'android') {
         // Add timeout to prevent hanging - optimized scanning should complete faster
-        // Return partial results if timeout occurs (silent - no console spam)
+        // Return partial results if timeout occurs (with logging)
         try {
-          const images = await Promise.race([
-            this.fetchAndroidImages({ offset, limit, filterType }),
-            new Promise((resolve) => 
-              setTimeout(() => {
-                // Silent timeout - optimized scanning should complete before this
-                resolve([]); // Return empty array instead of rejecting
-              }, 30000) // Reduced to 30 seconds - optimized scan should be faster
-            )
-          ]);
+          console.log('🔄 MediaStoreService: Starting Android scan...');
+          const scanStartTime = Date.now();
+          
+          // Call fetchAndroidImages directly without timeout for now
+          // (Timeout was causing issues - videos detected but results not returned)
+          const images = await this.fetchAndroidImages({ offset, limit, filterType });
+          
+          const scanTime = Date.now() - scanStartTime;
+          const videoCount = images?.filter(item => item.isVideo === true).length || 0;
+          console.log(`✅ MediaStoreService: Scan completed in ${scanTime}ms, returning ${images?.length || 0} items (${videoCount} videos)`);
+          
+          // Debug: Log what we're returning
+          console.log('📤 MediaStoreService: Returning results:', {
+            total: images?.length || 0,
+            videos: videoCount,
+            images: (images?.length || 0) - videoCount
+          });
           
           // Return images (even if empty - CameraRoll will provide media)
           return images || [];
         } catch (scanError) {
-          // If scanning fails, silently return empty array (CameraRoll will handle it)
+          // If scanning fails, log the error
+          console.error('❌ MediaStoreService: Scan error:', scanError);
+          console.error('❌ MediaStoreService: Error stack:', scanError.stack);
           return [];
         }
       } else {
@@ -51,7 +70,9 @@ class MediaStoreService {
       // If no real images found, return empty array (CameraRoll will handle it)
       return [];
     } catch (error) {
-      // Catch-all error handler - silently return empty array (CameraRoll will provide media)
+      // Catch-all error handler - log the error
+      console.error('❌ MediaStoreService: Fatal error:', error);
+      console.error('❌ MediaStoreService: Error stack:', error.stack);
       return [];
     }
   }
@@ -152,17 +173,47 @@ class MediaStoreService {
         }
       }
 
-      // Sort by creation time (newest first) - use efficient sort
-      allImages.sort((a, b) => b.created - a.created);
+      // Sort by creation time (newest first) using normalizeTimestamp
+      allImages.sort((a, b) => normalizeTimestamp(b.created) - normalizeTimestamp(a.created));
+      
+      // Debug: Count videos before applying offset/limit
+      const videoCount = allImages.filter(item => item.isVideo === true).length;
+      console.log('📊 MediaStoreService: Scanned media (fetchAndroidImages):', {
+        total: allImages.length,
+        videos: videoCount,
+        images: allImages.length - videoCount,
+        offset,
+        limit
+      });
       
       // Apply offset and limit after scanning
       const startIndex = Math.max(0, offset);
       const endIndex = limit !== null ? startIndex + limit : undefined;
       const result = endIndex !== undefined ? allImages.slice(startIndex, endIndex) : allImages.slice(startIndex);
       
+      // Debug: Count videos after applying offset/limit
+      const resultVideoCount = result.filter(item => item.isVideo === true).length;
+      console.log('📊 MediaStoreService: After offset/limit:', {
+        total: result.length,
+        videos: resultVideoCount,
+        images: result.length - resultVideoCount
+      });
+      
+      if (videoCount > resultVideoCount) {
+        console.warn('⚠️ MediaStoreService: Videos lost during offset/limit:', {
+          before: videoCount,
+          after: resultVideoCount,
+          offset,
+          limit,
+          lost: videoCount - resultVideoCount
+        });
+      }
+      
       return result;
 
     } catch (error) {
+      console.error('❌ MediaStoreService: fetchAndroidImages error:', error);
+      console.error('❌ MediaStoreService: Error stack:', error.stack);
       return [];
     }
   }
@@ -254,11 +305,10 @@ class MediaStoreService {
             
             try {
               const stat = await RNFS.stat(file.path);
-              // Normalize timestamp to milliseconds
-              let createdTimestamp = stat.ctime;
-              if (createdTimestamp < 10000000000) {
-                createdTimestamp = createdTimestamp * 1000; // Convert seconds to milliseconds
-              }
+              // For photos/videos, use mtime (modification time) which is usually when the photo/video was taken
+              // mtime is more accurate than ctime for media files
+              // Prefer mtime > ctime > current time
+              const createdTimestamp = normalizeTimestamp(stat.mtime || stat.ctime);
               
               // Normalize file path for deduplication (remove file:// prefix, lowercase, trim)
               const normalizedPath = file.path.toLowerCase().trim().replace(/\\/g, '/');
@@ -284,16 +334,62 @@ class MediaStoreService {
               
               if (!isDuplicate) {
                 const uniqueId = `mediastore_${normalizedPath.replace(/[^a-z0-9]/g, '_')}_${createdTimestamp}`;
+                const fileUri = 'file://' + file.path;
                 
                 const mediaItem = {
                   id: uniqueId,
-                  uri: 'file://' + file.path,
+                  uri: fileUri,
                   fileName: file.name,
                   size: stat.size,
                   created: createdTimestamp, // Now in milliseconds
                   type: mediaType,
-                  isVideo: mediaType === 'video',
+                  isVideo: mediaType === 'video' ? true : false, // Explicitly set to boolean true/false
                 };
+                
+                // For videos, ensure videoUri and thumbnailUri are set correctly
+                if (mediaType === 'video') {
+                  // CRITICAL: Always set videoUri to the actual video file URI
+                  mediaItem.videoUri = fileUri;
+                  mediaItem.isVideo = true; // Explicitly set to true for videos
+                  mediaItem.type = 'video'; // Explicitly set type
+                  
+                  // Set thumbnailUri to fileUri initially - create thumbnail async without blocking
+                  mediaItem.thumbnailUri = fileUri; // Default to fileUri (will be updated if thumbnail succeeds)
+                  
+                  // Create thumbnail asynchronously without blocking (fire and forget)
+                  // This prevents thumbnail creation from slowing down the scan
+                  CreateThumbnail.create({ url: fileUri })
+                    .then(thumb => {
+                      // Update thumbnail if creation succeeds (but don't block if it fails)
+                      const videoItem = allImages.find(item => item.id === mediaItem.id);
+                      if (videoItem && thumb && thumb.path) {
+                        videoItem.thumbnailUri = thumb.path;
+                        // Ensure videoUri is still set to the actual video file
+                        if (!videoItem.videoUri) {
+                          videoItem.videoUri = fileUri;
+                        }
+                      }
+                    })
+                    .catch(e => {
+                      // Silently fail - fileUri is already set as fallback
+                      // Don't log to avoid console spam
+                    });
+                  
+                  // Debug: Log video detection (only first few to avoid spam)
+                  const currentVideoCount = allImages.filter(item => item.isVideo === true).length;
+                  if (currentVideoCount <= 10) {
+                    console.log('🎥 MediaStoreService: Video detected:', {
+                      fileName: file.name,
+                      uri: fileUri.substring(0, 60),
+                      isVideo: mediaItem.isVideo,
+                      type: mediaItem.type,
+                      totalVideosSoFar: currentVideoCount + 1
+                    });
+                  }
+                } else {
+                  mediaItem.isVideo = false; // Explicitly set to false for images
+                  mediaItem.type = 'image'; // Explicitly set type
+                }
                 
                 allImages.push(mediaItem);
               }

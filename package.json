@@ -45,8 +45,8 @@
     "react-native-svg": "^15.13.0",
     "react-native-swiper-flatlist": "^3.2.5",
     "react-native-video": "^6.17.0",
+    "react-native-view-shot": "^4.0.3",
     "react-native-vision-camera": "^4.7.2",
-    "react-native-webgl": "^0.8.0",
     "react-redux": "^9.2.0",
     "redux-thunk": "^3.1.0"
   },
