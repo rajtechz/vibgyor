@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,79 +19,10 @@ import { CropView } from 'react-native-image-crop-tools';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import LinearGradient from 'react-native-linear-gradient';
 import Video from 'react-native-video';
-import Svg, { Path } from 'react-native-svg';
+import { BackIcon, LocationPinIcon, ChevronDownIcon, PlayIcon, CloseIcon } from '../../../components/icons/SvgIcons';
 import { setCurrentScreen, hideTabBar, showTabBar } from '../../../redux/slices/uiSlice';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Back Arrow Icon (Chevron Left)
-const BackIcon = ({ width = 24, height = 24, color = 'white' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M15.375 5.25L8.625 12L15.375 18.75"
-      stroke={color}
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-// Location Pin Icon
-const LocationIcon = ({ width = 20, height = 20, color = 'white' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-// Chevron Down Icon
-const ChevronDownIcon = ({ width = 16, height = 16, color = 'white' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M6 9L12 15L18 9"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-// Play Icon for Videos
-const PlayIcon = ({ width = 40, height = 40, color = 'white' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M8 5V19L19 12L8 5Z"
-      fill={color}
-    />
-  </Svg>
-);
-
-// Close Icon (X)
-const CloseIcon = ({ width = 24, height = 24, color = 'white' }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M18 6L6 18M6 6L18 18"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
 
 // Filter Icon (from PNG file)
 const FilterIcon = ({ width = 35, height = 35 }) => (
@@ -134,7 +65,24 @@ function CropFilterScreen() {
   const [showLikeDropdown, setShowLikeDropdown] = useState(false);
   const [showCommentDropdown, setShowCommentDropdown] = useState(false);
 
-  const displayMediaItems = mediaItems && mediaItems.length > 0 ? mediaItems : (currentImageUri ? [{ uri: currentImageUri, type: 'image' }] : []);
+  // Initialize media items state from route params
+  const initialMediaItems = mediaItems && mediaItems.length > 0 
+    ? mediaItems 
+    : (currentImageUri ? [{ uri: currentImageUri, type: 'image' }] : []);
+  
+  const [displayMediaItems, setDisplayMediaItems] = useState(initialMediaItems);
+
+  // Sync displayMediaItems when route params change (e.g., when navigating back and forth)
+  useEffect(() => {
+    const newInitialItems = mediaItems && mediaItems.length > 0 
+      ? mediaItems 
+      : (currentImageUri ? [{ uri: currentImageUri, type: 'image' }] : []);
+    
+    if (newInitialItems.length > 0) {
+      setDisplayMediaItems(newInitialItems);
+      setCurrentIndex(0);
+    }
+  }, [mediaItems, currentImageUri]);
 
   // Redux-based tab bar hiding when CropFilterScreen is focused
   useFocusEffect(
@@ -218,6 +166,36 @@ function CropFilterScreen() {
     }
   };
 
+  // Handle remove media item
+  const handleRemoveItem = (indexToRemove) => {
+    if (displayMediaItems.length <= 1) {
+      Alert.alert('Cannot Remove', 'At least one media item is required.');
+      return;
+    }
+
+    // Remove the item at the specified index
+    const updatedItems = displayMediaItems.filter((_, index) => index !== indexToRemove);
+    setDisplayMediaItems(updatedItems);
+
+    // Adjust current index after removal
+    if (updatedItems.length === 0) {
+      // If no items left, navigate back
+      handleBack();
+      return;
+    }
+
+    // If we removed the current item or an item before it, adjust index
+    if (indexToRemove === currentIndex) {
+      // If we removed the current item, move to the previous item (or last if it was first)
+      const newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+      setCurrentIndex(newIndex);
+    } else if (indexToRemove < currentIndex) {
+      // If we removed an item before the current one, decrement index
+      setCurrentIndex(currentIndex - 1);
+    }
+    // If we removed an item after the current one, no index adjustment needed
+  };
+
   const renderMediaItem = ({ item, index }) => {
     const isVideo = item.isVideo || item.type === 'video';
     
@@ -250,12 +228,15 @@ function CropFilterScreen() {
         <TouchableOpacity 
           style={styles.closeButton}
           onPress={() => {
-            // Handle remove item
+            if (displayMediaItems.length <= 1) {
+              Alert.alert('Cannot Remove', 'At least one media item is required.');
+              return;
+            }
+            
             Alert.alert('Remove', 'Remove this media?', [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Remove', style: 'destructive', onPress: () => {
-                // Remove logic can be added here
-                console.log('Remove item:', index);
+                handleRemoveItem(index);
               }}
             ]);
           }}
@@ -335,7 +316,22 @@ function CropFilterScreen() {
                   )}
                   
                   {/* Close Button - Top Right */}
-                  <TouchableOpacity style={styles.closeButton}>
+                  <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={() => {
+                      if (displayMediaItems.length <= 1) {
+                        Alert.alert('Cannot Remove', 'At least one media item is required.');
+                        return;
+                      }
+                      
+                      Alert.alert('Remove', 'Remove this media?', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Remove', style: 'destructive', onPress: () => {
+                          handleRemoveItem(0);
+                        }}
+                      ]);
+                    }}
+                  >
                     <View style={styles.closeButtonCircle}>
                       <CloseIcon width={16} height={16} color="white" />
                     </View>
@@ -409,7 +405,7 @@ function CropFilterScreen() {
                 value={location}
                 onChangeText={setLocation}
               />
-              <LocationIcon width={20} height={20} color="white" />
+              <LocationPinIcon width={20} height={20} color="white" />
             </View>
           </LinearGradient>
 
