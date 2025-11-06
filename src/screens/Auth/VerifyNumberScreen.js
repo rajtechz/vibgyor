@@ -415,6 +415,26 @@ function VerifyNumberScreen() {
           console.log('🔍 DEBUG: Refresh Token Value:', refreshToken);
           console.log('🔍 DEBUG: User Object:', JSON.stringify(user, null, 2));
           
+          // DEBUG: Log User ID
+          if (user) {
+            const userId = user._id || user.id || user.userId || user.user_id;
+            console.log('🆔 USER ID:', userId || 'Not found in user object');
+            console.log('🆔 User ID Details:', {
+              '_id': user._id,
+              'id': user.id,
+              'userId': user.userId,
+              'user_id': user.user_id,
+              'Full User Object Keys': Object.keys(user)
+            });
+            if (userId) {
+              console.log('✅ User logged in successfully with User ID:', userId);
+            } else {
+              console.warn('⚠️ User ID not found in user object. Available keys:', Object.keys(user));
+            }
+          } else {
+            console.warn('⚠️ User object is null or undefined');
+          }
+          
           // Validate tokens before saving
           if (!accessToken || !refreshToken) {
             console.log('❌ DEBUG: Missing tokens in API response');
@@ -441,6 +461,14 @@ function VerifyNumberScreen() {
           }));
           
           console.log('💾 Redux: setTokens dispatched successfully');
+          
+          // Log User ID after storing in Redux
+          if (user) {
+            const userId = user._id || user.id || user.userId || user.user_id;
+            if (userId) {
+              console.log('✅ LOGIN SUCCESS - User ID stored in Redux:', userId);
+            }
+          }
           
           // DEBUG: Verify Redux state after dispatch
           console.log('🔍 DEBUG: Verifying Redux state after dispatch...');

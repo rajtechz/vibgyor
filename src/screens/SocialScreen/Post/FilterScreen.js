@@ -25,6 +25,7 @@ import Video from 'react-native-video';
 import ViewShot from 'react-native-view-shot';
 import { setCurrentScreen, hideTabBar, showTabBar } from '../../../redux/slices/uiSlice';
 import CustomButton from '../../../components/common/CustomButton';
+import { createPost } from '../../../api/socialAPI';
 
 // Safely import CameraRoll
 let CameraRoll = null;
@@ -138,6 +139,7 @@ function FilterScreen() {
   const swiperRef = useRef(null);
   const viewShotRef = useRef(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { 
     croppedImage, 
@@ -329,40 +331,117 @@ function FilterScreen() {
     }
   }, [currentImage, isDownloading, requestStoragePermission]);
 
-  const handleUploadVibes = () => {
-    console.log('Upload Vibes button pressed');
-    // Prepare filtered media items with their respective filters
-    const filteredMediaItems = displayMediaItems.map((item, index) => ({
-      ...item,
-      filter: imageFilters[index] || 'default',
-    }));
+  const handleUploadVibes = async () => {
+    console.log('📤 Upload Vibes button pressed');
+    
+    // Prevent multiple simultaneous uploads
+    if (isUploading) {
+      return;
+    }
 
-    // Navigate to PostEdit or final upload screen with all filtered images
-    const rootNavigator = navigation.getParent()?.getParent();
-    if (rootNavigator) {
-      rootNavigator.navigate('Main', {
-        screen: 'Home',
-        params: {
-          screen: 'PostEdit',
-          params: {
-            mediaItems: filteredMediaItems,
-            isMultiple: isMultiple || filteredMediaItems.length > 1,
-            caption,
-            location,
-            likeVisibility,
-            commentVisibility,
-          },
-        },
+    setIsUploading(true);
+
+    try {
+      // Prepare media items for upload
+      const mediaItemsToUpload = displayMediaItems.map((item) => ({
+        uri: item.uri,
+        type: item.type || (item.isVideo ? 'video' : 'image'),
+        isVideo: item.isVideo || item.type === 'video',
+        fileName: item.fileName,
+      }));
+
+      // Parse location if it's a string
+      let locationData = null;
+      if (location) {
+        try {
+          locationData = typeof location === 'string' ? JSON.parse(location) : location;
+        } catch (e) {
+          // If location is not valid JSON, treat it as a simple string
+          locationData = {
+            name: location,
+            address: location,
+          };
+        }
+      }
+
+      // Combine caption and content (if caption exists, use it as content)
+      const content = caption || '';
+
+      // Prepare post data
+      const postData = {
+        content, // Post content (required if no media, but we have media)
+        caption, // Optional caption
+        visibility: likeVisibility || 'Public', // Map to API format in API function
+        commentVisibility: commentVisibility || 'Public', // Map to API format in API function
+        location: locationData,
+        mediaItems: mediaItemsToUpload,
+      };
+
+      console.log('📤 Uploading post with data:', {
+        hasContent: !!content,
+        hasCaption: !!caption,
+        visibility: postData.visibility,
+        commentVisibility: postData.commentVisibility,
+        hasLocation: !!locationData,
+        mediaItemsCount: mediaItemsToUpload.length,
       });
-    } else {
-      navigation.navigate('PostEdit', {
-        mediaItems: filteredMediaItems,
-        isMultiple: isMultiple || filteredMediaItems.length > 1,
-        caption,
-        location,
-        likeVisibility,
-        commentVisibility,
-      });
+
+      // Call API to create post
+      const result = await createPost(postData);
+
+      if (result.success) {
+        console.log('✅ Post created successfully:', result.postId);
+        
+        // Show success message
+        Alert.alert(
+          'Success',
+          'Your post has been uploaded successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Navigate back to home/main screen
+                dispatch(showTabBar());
+                dispatch(setCurrentScreen(null));
+                
+                // Navigate to home screen
+                const rootNavigator = navigation.getParent()?.getParent();
+                if (rootNavigator) {
+                  rootNavigator.navigate('Main', {
+                    screen: 'Home',
+                    params: {
+                      screen: 'HomeMain',
+                    },
+                  });
+                } else {
+                  // Fallback navigation
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'PostMain' }],
+                  });
+                }
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+      } else {
+        console.error('❌ Failed to create post:', result.error);
+        Alert.alert(
+          'Upload Failed',
+          result.message || result.error || 'Failed to upload post. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error uploading post:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'An unexpected error occurred. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -631,9 +710,10 @@ function FilterScreen() {
           </TouchableOpacity>
 
           <CustomButton
-            title="Upload Vibes"
+            title={isUploading ? 'Uploading...' : 'Upload Vibes'}
             onPress={handleUploadVibes}
             style={styles.uploadButton}
+            disabled={isUploading}
           />
         </View>
       </SafeAreaView>

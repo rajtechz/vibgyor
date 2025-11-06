@@ -492,7 +492,9 @@ export const authAPI = {
     console.log('🔗 Endpoint:', API_ENDPOINTS.UPLOAD_PROFILE_PICTURE);
     
     const uploadUrl = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_PROFILE_PICTURE}`;
-    console.log('🌐 Full URL:', uploadUrl);
+    console.log('🌐 Full API URL:', uploadUrl);
+    console.log('🌐 Base URL:', API_CONFIG.BASE_URL);
+    console.log('🌐 Endpoint Path:', API_ENDPOINTS.UPLOAD_PROFILE_PICTURE);
 
     if (!accessToken) {
       console.log('❌ AuthAPI: Missing access token for profile picture upload');
@@ -655,6 +657,9 @@ export const authAPI = {
     console.log('📄 AuthAPI: uploadIDProof called');
     console.log('📄 File Data:', fileData);
     console.log('📄 Document Type:', documentType);
+    console.log('🔗 Endpoint:', API_ENDPOINTS.UPLOAD_ID_PROOF);
+    console.log('🌐 Base URL:', API_CONFIG.BASE_URL);
+    console.log('🌐 Full API URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_ID_PROOF}`);
 
     if (!fileData || !documentType) {
       console.log('❌ DEBUG: Missing required parameters');
@@ -684,6 +689,7 @@ export const authAPI = {
       console.log('📤 File Type:', fileData.type);
       console.log('📤 File Name:', fileData.fileName);
       console.log('📤 Document Type:', documentType);
+      console.log('🌐 Attempting to connect to:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_ID_PROOF}`);
 
       // Use apiClient which handles token refresh automatically
       // apiClient will detect FormData and handle Content-Type properly
@@ -700,11 +706,27 @@ export const authAPI = {
     } catch (error) {
       console.log('❌ AuthAPI: uploadIDProof error');
       console.log('💥 Error Message:', error.message);
+      console.log('💥 Error Type:', error.name);
+      console.log('💥 Full Error:', JSON.stringify(error, null, 2));
+      
+      // Enhanced error message for network failures
+      let errorMessage = error.message;
+      let userFriendlyMessage = 'Failed to upload ID proof';
+      
+      if (error.message === 'Network request failed' || error.message.includes('Network')) {
+        errorMessage = 'Network request failed - Cannot connect to server';
+        userFriendlyMessage = `Cannot connect to server at ${API_CONFIG.BASE_URL}. Please check:\n\n1. Backend server is running on port 3000\n2. Device and computer are on the same WiFi network\n3. Backend is listening on 0.0.0.0:3000 (not just 127.0.0.1)\n4. Firewall is not blocking port 3000\n5. IP address is correct: ${API_CONFIG.BASE_URL}`;
+        console.error('🌐 NETWORK DIAGNOSTICS:');
+        console.error('🌐 Backend URL:', API_CONFIG.BASE_URL);
+        console.error('🌐 Endpoint:', API_ENDPOINTS.UPLOAD_ID_PROOF);
+        console.error('🌐 Full URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.UPLOAD_ID_PROOF}`);
+        console.error('🌐 This is likely a BACKEND/NETWORK issue, not a frontend code issue');
+      }
 
       return {
         success: false,
-        error: error.message,
-        message: 'Failed to upload ID proof',
+        error: errorMessage,
+        message: userFriendlyMessage,
       };
     }
   },

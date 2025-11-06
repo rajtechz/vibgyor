@@ -1,6 +1,6 @@
 // src/screens/Profile/ProfileScreen.js
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, StatusBar, Image, Animated, ActivityIndicator } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, StatusBar, Image, Animated, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
@@ -69,13 +69,6 @@ const ReelsIcon = ({ width = 24, height = 24, isActive = false }) => (
   </Svg>
 );
 
-// Profile Section Component
-const ProfileSection = ({ title, children }) => (
-  <View style={styles.section}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-    {children}
-  </View>
-);
 
 
 // Setting Item Component
@@ -185,6 +178,8 @@ function ProfileScreen() {
   const [profileData, setProfileData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [postsRefreshKey, setPostsRefreshKey] = useState(0);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   
@@ -336,6 +331,35 @@ function ProfileScreen() {
     return millions.endsWith('.0') ? `${millions.split('.')[0]}M` : `${millions}M`;
   };
 
+  // Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    console.log('🔄 ProfileScreen: Pull-to-refresh triggered');
+    setRefreshing(true);
+    
+    try {
+      // Refresh profile data
+      if (authState.isAuthenticated && authState.accessToken) {
+        const result = await authAPI.getUserProfile(authState.accessToken);
+        
+        if (result.success && result.data?.data) {
+          console.log('✅ ProfileScreen: Profile refreshed successfully');
+          setProfileData(result.data.data);
+          setImageError(false);
+        } else {
+          console.log('❌ ProfileScreen: Failed to refresh profile');
+        }
+      }
+      
+      // Trigger PostsTab refresh by updating refresh key
+      setPostsRefreshKey(prev => prev + 1);
+      console.log('🔄 ProfileScreen: Posts refresh triggered');
+    } catch (error) {
+      console.error('💥 ProfileScreen: Error during refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [authState.isAuthenticated, authState.accessToken]);
+
   return (
     <CommonBackground>
       <StatusBar barStyle="light-content" backgroundColor="#140034" />
@@ -351,6 +375,15 @@ function ProfileScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#8A52F3"
+            colors={['#8A52F3']}
+            progressBackgroundColor="#140034"
+          />
+        }
       >
 
         {/* Username and Menu */}
@@ -516,7 +549,7 @@ function ProfileScreen() {
 
         {/* Content Grid */}
         <View style={styles.contentGrid}>
-          {activeTab === 'grid' ? <PostsTab navigation={navigation} /> : <ReelsTab />}
+          {activeTab === 'grid' ? <PostsTab navigation={navigation} refreshKey={postsRefreshKey} /> : <ReelsTab />}
         </View>
 
       </ScrollView>

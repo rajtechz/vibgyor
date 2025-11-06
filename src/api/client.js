@@ -267,6 +267,24 @@ const request = async (endpoint, options = {}, retryCount = 0) => {
       name: error.name
     });
     
+    // Enhanced network error diagnostics
+    if (error.message === 'Network request failed' || error.message.includes('Network')) {
+      console.error('🌐 NETWORK CONNECTION DIAGNOSTICS:');
+      console.error('🌐 Request URL:', url);
+      console.error('🌐 Base URL:', API_CONFIG.BASE_URL);
+      console.error('🌐 This error typically means:');
+      console.error('   1. Backend server is not running');
+      console.error('   2. Device cannot reach the server IP address');
+      console.error('   3. Backend is not listening on 0.0.0.0:3000');
+      console.error('   4. Device and computer are on different networks');
+      console.error('   5. Firewall is blocking the connection');
+      console.error('🌐 TROUBLESHOOTING STEPS:');
+      console.error('   - Check if backend is running: netstat -ano | findstr :3000');
+      console.error('   - Verify IP address: ipconfig');
+      console.error('   - Check backend logs for errors');
+      console.error('   - Ensure backend listens on 0.0.0.0:3000, not 127.0.0.1:3000');
+    }
+    
     throw error;
   }
 };

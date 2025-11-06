@@ -134,8 +134,28 @@ function ProfileImageUpload({ onImageSelected, currentImage, size = 120 }) {
         console.log('✅ DEBUG: Full result:', JSON.stringify(result, null, 2));
         
         // Get uploaded image URL from response
-        const uploadedImageUrl = result.data?.data?.profilePictureUrl || result.data?.profilePictureUrl;
+        // API response structure: result.data.data.data.url (nested structure)
+        // Try multiple paths to handle different response formats
+        const uploadedImageUrl = 
+          result.data?.data?.data?.url ||           // Current API format: nested data.data.url
+          result.data?.data?.url ||                 // Alternative format: data.url
+          result.data?.data?.profilePictureUrl ||   // Alternative: profilePictureUrl in data
+          result.data?.profilePictureUrl ||         // Alternative: profilePictureUrl at root
+          result.data?.url;                         // Fallback: url at root
+        
         console.log('📸 DEBUG: Uploaded image URL:', uploadedImageUrl);
+        console.log('📸 DEBUG: Response structure analysis:', {
+          'result.data': result.data ? 'exists' : 'missing',
+          'result.data.data': result.data?.data ? 'exists' : 'missing',
+          'result.data.data.data': result.data?.data?.data ? 'exists' : 'missing',
+          'result.data.data.data.url': result.data?.data?.data?.url || 'undefined',
+          'result.data.data.url': result.data?.data?.url || 'undefined',
+          'result.data.url': result.data?.url || 'undefined',
+        });
+        
+        if (!uploadedImageUrl) {
+          console.warn('⚠️ DEBUG: No image URL found in response. Full response structure:', JSON.stringify(result, null, 2));
+        }
         
         // Update imageData with the uploaded URL
         const updatedImageData = {

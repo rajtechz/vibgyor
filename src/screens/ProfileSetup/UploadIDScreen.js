@@ -7,6 +7,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import CustomButton from '../../components/common/CustomButton';
 import CommonBackground from '../../components/common/CommonBackground';
 import ErrorModal from '../../components/common/ErrorModal';
+import SuccessModal from '../../components/common/SuccessModal';
 import UploadModal from '../../components/common/UploadModal';
 import PermissionModal from '../../components/common/PermissionModal';
 import { fonts } from '../../styles/typography';
@@ -59,6 +60,11 @@ function UploadIDScreen({ navigation }) {
     message: '',
     title: 'Error'
   });
+  const [successModal, setSuccessModal] = useState({
+    visible: false,
+    message: '',
+    title: 'Success'
+  });
   const [uploadModal, setUploadModal] = useState(false);
   const [permissionModal, setPermissionModal] = useState({
     visible: false,
@@ -95,6 +101,22 @@ function UploadIDScreen({ navigation }) {
       visible: false,
       message: '',
       title: 'Error'
+    });
+  };
+
+  const showSuccess = (message, title = 'Success') => {
+    setSuccessModal({
+      visible: true,
+      message,
+      title
+    });
+  };
+
+  const hideSuccess = () => {
+    setSuccessModal({
+      visible: false,
+      message: '',
+      title: 'Success'
     });
   };
 
@@ -322,13 +344,11 @@ function UploadIDScreen({ navigation }) {
         console.log('✅ DEBUG: Upload URL:', result.data?.data?.url);
         console.log('✅ DEBUG: Full Success Response:', JSON.stringify(result, null, 2));
         
-        // Show success message
-        showError('ID proof uploaded successfully!', 'Success');
+        // Show success modal
+        showSuccess('ID proof uploaded successfully!', 'Success');
         
-        // Navigate to next screen after a short delay
-        setTimeout(() => {
-          navigation.navigate('Location');
-        }, 1500);
+        // Navigate to next screen after modal is closed
+        // Navigation will be handled in the SuccessModal's onButtonPress
       } else {
         console.log('❌ DEBUG: ID proof upload failed');
         console.log('❌ DEBUG: Error:', result.error);
@@ -460,6 +480,17 @@ function UploadIDScreen({ navigation }) {
         title={errorModal.title}
         message={errorModal.message}
         onClose={hideError}
+      />
+
+      <SuccessModal
+        visible={successModal.visible}
+        title={successModal.title}
+        message={successModal.message}
+        onClose={hideSuccess}
+        onButtonPress={() => {
+          hideSuccess();
+          navigation.navigate('Location');
+        }}
       />
 
       <UploadModal

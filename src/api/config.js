@@ -66,6 +66,8 @@ export const API_ENDPOINTS = {
   // Social endpoints
   GET_POSTS: '/social/posts',
   CREATE_POST: '/social/posts',
+  CREATE_USER_POST: '/user/posts', // User post creation endpoint
+  GET_USER_POSTS: '/user/posts/me', // Get current user's posts
   LIKE_POST: '/social/posts/:id/like',
   COMMENT_POST: '/social/posts/:id/comment',
   
