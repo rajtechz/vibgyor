@@ -546,6 +546,12 @@ export const authAPI = {
       }
 
       // Make API call with FormData
+      // For FormData, don't set Content-Type - React Native fetch will set it with boundary automatically
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        // Note: Content-Type is NOT set for FormData - fetch will set it automatically with boundary
+      };
+      
       console.log('🚀 Making fetch request to:', uploadUrl);
       console.log('🚀 Method: POST');
       console.log('🚀 Headers:', {
