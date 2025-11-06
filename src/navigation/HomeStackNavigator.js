@@ -8,6 +8,7 @@ import SelfStoryScreen from '../screens/SocialScreen/Home/SelfStoryScreen';
 import OtherUserProfileScreen from '../screens/SocialScreen/Profile/OtherUserProfileScreen';
 import OtherUserPostViewScreen from '../screens/SocialScreen/Profile/OtherUserPostViewScreen';
 import PostCreationScreen from '../screens/SocialScreen/Post/PostCreationScreen';
+import UploadVibesScreen from '../screens/SocialScreen/Post/UploadVibesScreen';
 import LikesScreen from '../screens/SocialScreen/Profile/LikesScreen';
 import CommentsScreen from '../screens/SocialScreen/Profile/CommentsScreen';
 
@@ -24,6 +25,7 @@ function HomeStackNavigator() {
       <Stack.Screen name="Notification" component={NotificationScreen} />
       <Stack.Screen name="Story" component={StoryScreen} />
       <Stack.Screen name="PostEdit" component={PostEditScreen} />
+      <Stack.Screen name="UploadVibes" component={UploadVibesScreen} />
       <Stack.Screen name="SelfStory" component={SelfStoryScreen} />
       <Stack.Screen name="OtherUserProfile" component={OtherUserProfileScreen} />
         <Stack.Screen name="OtherUserPostView" component={OtherUserPostViewScreen} />
