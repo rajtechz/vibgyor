@@ -2,24 +2,8 @@ import apiClient from './client';
 import { API_ENDPOINTS, API_CONFIG } from './config';
 import { Platform } from 'react-native';
 
-// Get local server URL based on platform
-const getLocalServerUrl = () => {
-  // Using localhost for testing (server is running on localhost:3000)
-  // iOS Simulator: localhost works
-  // Android Emulator: 10.0.2.2 works
-  // Physical device: Need network IP if server binds to 0.0.0.0
-  
-  if (Platform.OS === 'android') {
-    // Android emulator special IP to access host machine
-    return API_CONFIG.BASE_URL;
-  } else {
-    // iOS simulator - localhost works fine
-    return API_CONFIG.BASE_URL;
-  }
-  
-  // For network IP testing (if server is bound to 0.0.0.0):
-  // return 'http://192.168.29.173:3000';
-};
+// All APIs use API_CONFIG.BASE_URL which is configured for real device connections
+// BASE_URL is set to http://192.168.29.173:3000 in config.js
 
 // Auth API Service
 export const authAPI = {

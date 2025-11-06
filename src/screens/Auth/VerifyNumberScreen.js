@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, StatusBar, ScrollView, Alert } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, StatusBar, ScrollView } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -7,6 +7,8 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, { Path, Rect, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import CustomButton from '../../components/common/CustomButton';
 import CommonBackground from '../../components/common/CommonBackground';
+import SuccessModal from '../../components/common/SuccessModal';
+import ErrorModal from '../../components/common/ErrorModal';
 import { verifyOTP, clearErrors, setTokens } from '../../redux/slices/authSlice';
 import { authAPI } from '../../api/authAPI';
 
@@ -56,8 +58,8 @@ const AppIcon = ({ width = 80, height = 80 }) => (
   </Svg>
 );
 
-// OTP Input Component with proper gradient border
-const OTPInput = ({ value, onChangeText, onKeyPress, inputRef, isFilled }) => (
+// OTP Input Component with proper gradient border - Memoized for performance
+const OTPInput = memo(({ value, onChangeText, onKeyPress, inputRef, isFilled, index }) => (
   <View style={styles.otpInputContainer}>
     <LinearGradient
       colors={['#8A2BE2', '#C53E8D']}
@@ -83,7 +85,11 @@ const OTPInput = ({ value, onChangeText, onKeyPress, inputRef, isFilled }) => (
       </View>
     </LinearGradient>
   </View>
-);
+), (prevProps, nextProps) => {
+  // Only re-render if value or isFilled changes
+  return prevProps.value === nextProps.value && 
+         prevProps.isFilled === nextProps.isFilled;
+});
 
 function VerifyNumberScreen() {
   const navigation = useNavigation();
@@ -94,6 +100,11 @@ function VerifyNumberScreen() {
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successAction, setSuccessAction] = useState(null);
   const inputRefs = useRef([]);
 
   // Get route params for email verification
@@ -140,48 +151,61 @@ function VerifyNumberScreen() {
   // Handle OTP verification error
   useEffect(() => {
     if (otpState.otpError && !otpState.isVerifyingOTP) {
-      Alert.alert('Error', otpState.otpError);
+      setErrorMessage(otpState.otpError);
+      setShowErrorModal(true);
       dispatch(clearErrors());
     }
   }, [otpState.otpError, otpState.isVerifyingOTP, dispatch]);
 
   
 
-  const handleOtpChange = (text, index) => {
-    // Only allow single digit or empty string
-    if (text.length > 1) return;
+  // Optimized OTP change handler with useCallback
+  const handleOtpChange = useCallback((text, index) => {
+    // Only allow numeric characters and single digit
+    const numericText = text.replace(/[^0-9]/g, '');
+    if (numericText.length > 1) return;
 
-    const newOtp = [...otp];
-    newOtp[index] = text;
-    setOtp(newOtp);
-
-    // Move to next input when a digit is entered
-    if (text && index < 5) {
-      setTimeout(() => {
+    setOtp(prevOtp => {
+      const newOtp = [...prevOtp];
+      const previousValue = prevOtp[index];
+      newOtp[index] = numericText;
+      
+      // Move to next input when a digit is entered (instant)
+      if (numericText && !previousValue && index < 5) {
         inputRefs.current[index + 1]?.focus();
-      }, 50); // Small delay for smoother transition
-    }
-    // Move to previous input when clearing
-    else if (!text && index > 0) {
-      setTimeout(() => {
-        inputRefs.current[index - 1]?.focus();
-      }, 50); // Small delay for smoother transition
-    }
-  };
-
-  const handleKeyPress = ({ nativeEvent: { key } }, index) => {
-    // Handle backspace for smooth navigation
-    if (key === 'Backspace' && index > 0) {
-      const newOtp = [...otp];
-      // Clear current input if it has a value, otherwise move to previous
-      if (otp[index]) {
-        newOtp[index] = '';
-        setOtp(newOtp);
-      } else {
+      }
+      // Move to previous input when clearing (instant)
+      else if (!numericText && previousValue && index > 0) {
         inputRefs.current[index - 1]?.focus();
       }
+      
+      return newOtp;
+    });
+  }, []);
+
+  // Optimized key press handler with useCallback
+  const handleKeyPress = useCallback(({ nativeEvent: { key } }, index) => {
+    // Handle backspace for smooth navigation
+    if (key === 'Backspace') {
+      setOtp(prevOtp => {
+        // If current input has value, clear it and keep focus
+        if (prevOtp[index]) {
+          const newOtp = [...prevOtp];
+          newOtp[index] = '';
+          return newOtp;
+        } 
+        // If current input is empty and not first input, move to previous and clear it
+        else if (index > 0) {
+          const newOtp = [...prevOtp];
+          newOtp[index - 1] = '';
+          // Move focus to previous input (instant)
+          inputRefs.current[index - 1]?.focus();
+          return newOtp;
+        }
+        return prevOtp;
+      });
     }
-  };
+  }, []);
 
   // Timer functionality
   useEffect(() => {
@@ -228,7 +252,8 @@ function VerifyNumberScreen() {
     // Validate OTP
     const otpString = otp.join('');
     if (otpString.length !== 6) {
-      Alert.alert('Error', 'Please enter the complete 6-digit OTP');
+      setErrorMessage('Please enter the complete 6-digit OTP');
+      setShowErrorModal(true);
       return;
     }
 
@@ -254,30 +279,24 @@ function VerifyNumberScreen() {
           console.log('✅ DEBUG: Email OTP verified successfully');
           console.log('✅ DEBUG: Full result:', JSON.stringify(result, null, 2));
           
-          Alert.alert(
-            'Success',
-            'Email verified successfully!',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  console.log('📧 DEBUG: Navigating back to PersonalDetailsScreen with verified email');
-                  // Pass verification success back to PersonalDetailsScreen
-                  navigation.navigate('PersonalDetails', { 
-                    emailVerified: true,
-                    verifiedEmail: email 
-                  });
-                },
-              },
-            ]
-          );
+          setSuccessMessage('Email verified successfully!');
+          setSuccessAction(() => () => {
+            console.log('📧 DEBUG: Navigating back to PersonalDetailsScreen with verified email');
+            // Pass verification success back to PersonalDetailsScreen
+            navigation.navigate('PersonalDetails', { 
+              emailVerified: true,
+              verifiedEmail: email 
+            });
+          });
+          setShowSuccessModal(true);
         } else {
           // Check if result.data has an error
-          const errorMessage = result.data?.message || result.error || 'Failed to verify email OTP. Please try again.';
+          const errorMsg = result.data?.message || result.error || 'Failed to verify email OTP. Please try again.';
           console.log('❌ DEBUG: Email OTP verification failed');
-          console.log('❌ DEBUG: Error:', errorMessage);
+          console.log('❌ DEBUG: Error:', errorMsg);
           console.log('❌ DEBUG: Full result.data:', JSON.stringify(result.data, null, 2));
-          Alert.alert('Error', errorMessage);
+          setErrorMessage(errorMsg);
+          setShowErrorModal(true);
         }
       } else {
         // Handle Phone OTP Verification (existing logic)
@@ -288,7 +307,8 @@ function VerifyNumberScreen() {
         console.log('🔍 VerifyNumberScreen: phoneNumber === undefined:', phoneNumber === undefined);
 
         if (!phoneNumber) {
-          Alert.alert('Error', 'Phone number not found. Please go back and try again.');
+          setErrorMessage('Phone number not found. Please go back and try again.');
+          setShowErrorModal(true);
           return;
         }
         
@@ -314,7 +334,8 @@ function VerifyNumberScreen() {
           // Check if result.data exists and has the expected structure
           if (!result.data) {
             console.log('❌ DEBUG: result.data is null or undefined');
-            Alert.alert('Error', 'Invalid API response structure');
+            setErrorMessage('Invalid API response structure');
+            setShowErrorModal(true);
             return;
           }
           
@@ -400,7 +421,8 @@ function VerifyNumberScreen() {
             console.log('❌ DEBUG: accessToken:', accessToken);
             console.log('❌ DEBUG: refreshToken:', refreshToken);
             console.log('❌ DEBUG: Full responseData for debugging:', JSON.stringify(responseData, null, 2));
-            Alert.alert('Error', 'Invalid tokens received from server. Please check console logs for details.');
+            setErrorMessage('Invalid tokens received from server. Please check console logs for details.');
+            setShowErrorModal(true);
             return;
           }
           
@@ -424,22 +446,16 @@ function VerifyNumberScreen() {
           console.log('🔍 DEBUG: Verifying Redux state after dispatch...');
           console.log('🔍 DEBUG: isAuthenticated should be true now');
           
-          Alert.alert(
-            'Success',
-            'OTP verified successfully!',
-            [
-              {
-                text: 'OK',
-                onPress: () => navigation.navigate('VerifySuccess'),
-              },
-            ]
-          );
+          setSuccessMessage('OTP verified successfully!');
+          setSuccessAction(() => () => navigation.navigate('VerifySuccess'));
+          setShowSuccessModal(true);
         }
       }
     } catch (error) {
       console.error('💥 VerifyNumberScreen: Error in handleSubmit:', error);
       setError(error.message);
-      Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again.');
+      setErrorMessage(error.message || 'Failed to verify OTP. Please try again.');
+      setShowErrorModal(true);
     } finally {
       setIsLoading(false);
     }
@@ -507,7 +523,8 @@ function VerifyNumberScreen() {
       
       if (!email) {
         console.log('❌ DEBUG: Email not found');
-        Alert.alert('Error', 'Email not found. Please go back and try again.');
+        setErrorMessage('Email not found. Please go back and try again.');
+        setShowErrorModal(true);
         return;
       }
 
@@ -534,14 +551,17 @@ function VerifyNumberScreen() {
             inputRefs.current[0]?.focus();
           }, 100);
           
-          Alert.alert('Success', 'Email OTP has been resent successfully!');
+          setSuccessMessage('Email OTP has been resent successfully!');
+          setShowSuccessModal(true);
         } else {
           console.log('❌ DEBUG: Resend Email OTP failed');
-          Alert.alert('Error', result.error || 'Failed to resend email OTP');
+          setErrorMessage(result.error || 'Failed to resend email OTP');
+          setShowErrorModal(true);
         }
       } catch (error) {
         console.error('💥 DEBUG: Exception in handleResendOtp for email:', error);
-        Alert.alert('Error', error.message || 'Failed to resend email OTP. Please try again.');
+        setErrorMessage(error.message || 'Failed to resend email OTP. Please try again.');
+        setShowErrorModal(true);
       }
     } else {
       // Handle Phone OTP Resend (existing logic)
@@ -552,7 +572,8 @@ function VerifyNumberScreen() {
 
       if (!phoneNumber) {
         console.log('❌ DEBUG: Phone number not found in Redux');
-        Alert.alert('Error', 'Phone number not found. Please go back and try again.');
+        setErrorMessage('Phone number not found. Please go back and try again.');
+        setShowErrorModal(true);
         return;
       }
 
@@ -593,12 +614,14 @@ function VerifyNumberScreen() {
             inputRefs.current[0]?.focus();
           }, 100);
           
-          console.log('✅ DEBUG: Showing success alert...');
-          Alert.alert('Success', 'OTP has been resent successfully!');
+          console.log('✅ DEBUG: Showing success modal...');
+          setSuccessMessage('OTP has been resent successfully!');
+          setShowSuccessModal(true);
         } else {
           console.log('❌ DEBUG: Resend OTP failed');
           console.log('❌ DEBUG: Error message:', result.error);
-          Alert.alert('Error', result.error || 'Failed to resend OTP');
+          setErrorMessage(result.error || 'Failed to resend OTP');
+          setShowErrorModal(true);
         }
       } catch (error) {
         console.error('💥 DEBUG: Exception in handleResendOtp:', error);
@@ -607,7 +630,8 @@ function VerifyNumberScreen() {
         console.error('💥 DEBUG: Error stack:', error.stack);
         console.error('💥 DEBUG: Full error object:', JSON.stringify(error, null, 2));
         
-        Alert.alert('Error', error.message || 'Failed to resend OTP. Please try again.');
+        setErrorMessage(error.message || 'Failed to resend OTP. Please try again.');
+        setShowErrorModal(true);
       }
     }
   };
@@ -654,10 +678,15 @@ function VerifyNumberScreen() {
           {otp.map((digit, index) => (
             <OTPInput
               key={index}
+              index={index}
               value={digit}
               onChangeText={(text) => handleOtpChange(text, index)}
               onKeyPress={(e) => handleKeyPress(e, index)}
-              inputRef={(ref) => (inputRefs.current[index] = ref)}
+              inputRef={(ref) => {
+                if (ref) {
+                  inputRefs.current[index] = ref;
+                }
+              }}
               isFilled={!!digit}
             />
           ))}
@@ -737,6 +766,32 @@ function VerifyNumberScreen() {
           </View>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Success"
+        message={successMessage}
+        onClose={() => {
+          setShowSuccessModal(false);
+          setSuccessAction(null);
+        }}
+        onButtonPress={() => {
+          setShowSuccessModal(false);
+          if (successAction) {
+            successAction();
+            setSuccessAction(null);
+          }
+        }}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        visible={showErrorModal}
+        title="Error"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </CommonBackground>
   );
 }

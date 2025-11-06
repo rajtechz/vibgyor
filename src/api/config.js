@@ -1,30 +1,20 @@
 import { Platform } from 'react-native';
 
-// Detect if running on Android Emulator
-// Android Emulator uses special IP: 10.0.2.2 to access host machine's localhost
-// Physical devices and iOS simulator can use actual network IP
+// Network IP Configuration for Real Device Connections
+// This IP is used for all API calls to connect from real devices
+// Make sure your device and computer are on the same WiFi network
 
-// For Android Emulator: use 10.0.2.2
-// For Physical Device: use your actual IP (192.168.29.173)
-// For iOS Simulator: use localhost or actual IP
+// Current Network IP (Wi-Fi adapter):
+// IPv4 Address: 192.168.29.173
+// Subnet Mask: 255.255.255.0
+// Default Gateway: 192.168.29.1
 
 const getBaseURL = () => {
   if (__DEV__) {
-    // Development mode
-    // Using network IP for both Android and iOS
-    // Requires: Backend must listen on 0.0.0.0:3000 (not just 127.0.0.1)
+    // Development mode - Using network IP for real device connections
+    // Backend must listen on 0.0.0.0:3000 (not just 127.0.0.1)
     // Device and computer must be on same WiFi network
-    
-    // Current network IP (from ipconfig - Wi-Fi adapter):
-    // IPv4 Address: 192.168.29.173
-    // Subnet Mask: 255.255.255.0
-    // Default Gateway: 192.168.29.1
     return 'http://192.168.29.173:3000';
-    
-    // Alternative options (comment out if needed):
-    // For Android with ADB Reverse: return 'http://127.0.0.1:3000';
-    // For iOS Simulator: return 'http://localhost:3000';
-    // For Android Emulator: return 'http://10.0.2.2:3000';
   }
   // Production
   return 'https://vibgyornode.onrender.com';
@@ -32,14 +22,11 @@ const getBaseURL = () => {
 
 // API Configuration
 export const API_CONFIG = {
-  // Dynamic BASE_URL based on platform
+  // Base URL for all API calls - configured for real device connections
   BASE_URL: getBaseURL(),
-  // Keep local IP for reference (Updated from latest ipconfig)
-  // Wi-Fi IPv4: 192.168.29.173, Subnet: 255.255.255.0, Gateway: 192.168.29.1
+  // Network IP for real devices (same as BASE_URL in dev mode)
   LOCAL_BASE_URL: 'http://192.168.29.173:3000',
-  // Emulator URL for Android
-  ANDROID_EMULATOR_URL: 'http://10.0.2.2:3000',
-  TIMEOUT: 15000, // Increased timeout for network requests
+  TIMEOUT: 15000, // Request timeout in milliseconds
   HEADERS: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

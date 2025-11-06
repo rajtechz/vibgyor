@@ -1,0 +1,403 @@
+[33m016c235[m[33m ([m[1;31mzaiba/master[m[33m, [m[1;31mzaiba/HEAD[m[33m)[m gsalleryimagecropmodal
+[1mdiff --git a/src/components/common/ImageCropModal.js b/src/components/common/ImageCropModal.js[m
+[1mindex b6481a1..5365d3e 100644[m
+[1m--- a/src/components/common/ImageCropModal.js[m
+[1m+++ b/src/components/common/ImageCropModal.js[m
+[36m@@ -1,78 +1,652 @@[m
+[31m-// ImageCropModal.js (AS IT IS)[m
+[31m-import React, { useEffect, useRef } from 'react';[m
+[31m-import { View, Text, StyleSheet, TouchableOpacity, Modal, Image, Alert } from 'react-native';[m
+[32m+[m[32mimport React, { useState, useEffect, useRef } from 'react';[m
+[32m+[m[32mimport {[m
+[32m+[m[32m  View,[m
+[32m+[m[32m  Text,[m
+[32m+[m[32m  StyleSheet,[m
+[32m+[m[32m  TouchableOpacity,[m
+[32m+[m[32m  Dimensions,[m
+[32m+[m[32m  StatusBar,[m
+[32m+[m[32m  Image,[m
+[32m+[m[32m  Modal,[m
+[32m+[m[32m  Alert,[m
+[32m+[m[32m  PanResponder,[m
+[32m+[m[32m  Animated,[m
+[32m+[m[32m} from 'react-native';[m
+[32m+[m[32mimport { SafeAreaView } from 'react-native-safe-area-context';[m
+[32m+[m[32mimport { useNavigation } from '@react-navigation/native';[m
+ import Video from 'react-native-video';[m
+ [m
+[31m-const ImageCropModal = ({ visible, onClose, onImageCropped, imageUri, mediaType }) => {[m
+[31m-  const isVideo = mediaType === 'video';[m
+[32m+[m[32mconst { width: screenWidth, height: screenHeight } = Dimensions.get('window');[m
+[32m+[m
+[32m+[m[32mconst ImageCropModal = ({ visible, onClose, onImageCropped, imageUri, mediaType = 'image' }) => {[m
+[32m+[m[32m  const navigation = useNavigation();[m
+[32m+[m[32m  const [isProcessing, setIsProcessing] = useState(false);[m
+[32m+[m[32m  const [showCropFrame, setShowCropFrame] = useState(false);[m
+[32m+[m[32m  const [cropArea, setCropArea] = useState({[m
+[32m+[m[32m    x: 20,[m
+[32m+[m[32m    y: 20,[m
+[32m+[m[32m    width: screenWidth - 80,[m
+[32m+[m[32m    height: (screenHeight - 200) * 0.6 - 40,[m
+[32m+[m[32m  });[m
+[32m+[m[32m  const [isDragging, setIsDragging] = useState(false);[m
+[32m+[m[32m  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });[m
+[32m+[m[32m  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });[m
+[32m+[m[32m  const [isVideoPaused, setIsVideoPaused] = useState(false);[m
+[32m+[m[41m  [m
+[32m+[m[32m  const pan = useRef(new Animated.ValueXY()).current;[m
+[32m+[m[32m  const imageRef = useRef(null);[m
+   const videoRef = useRef(null);[m
+[32m+[m[32m  const isVideo = mediaType === 'video';[m
+[32m+[m[32m  const [draggingHandle, setDraggingHandle] = useState(null);[m
+[32m+[m[32m  const [minCropSize] = useState(50);[m
+ [m
+[32m+[m[32m  // Auto-play video when modal opens (Instagram style)[m
+   useEffect(() => {[m
+     if (visible && isVideo) {[m
+[31m-      console.log('VIDEO PLAYING:', imageUri);[m
+[32m+[m[32m      setIsVideoPaused(false);[m
+[32m+[m[32m    } else if (!visible && isVideo) {[m
+[32m+[m[32m      setIsVideoPaused(true);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }, [visible, isVideo]);[m
+[32m+[m
+[32m+[m[32m  // Reset crop frame when modal opens[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    if (visible) {[m
+[32m+[m[32m      setShowCropFrame(false);[m
+[32m+[m[32m      setCropArea({[m
+[32m+[m[32m        x: 20,[m
+[32m+[m[32m        y: 20,[m
+[32m+[m[32m        width: screenWidth - 40,[m
+[32m+[m[32m        height: screenHeight - 260, // Full height minus header and button[m
+[32m+[m[32m      });[m
+[32m+[m[32m      setDraggingHandle(null);[m
+[32m+[m[32m      setIsDragging(false);[m
+     }[m
+   }, [visible]);[m
+ [m
+[31m-  const handleNext = () => {[m
+[31m-    if (!imageUri) return;[m
+[31m-    onImageCropped({[m
+[31m-      uri: imageUri,[m
+[31m-      type: isVideo ? 'video' : 'image',[m
+[31m-      fileName: isVideo ? `video_${Date.now()}.mp4` : `img_${Date.now()}.jpg`,[m
+[31m-      width: 1080,[m
+[31m-      height: 1920,[m
+[32m+[m[32m  // PanResponder for crop area interaction[m
+[32m+[m[32m  const panResponder = useRef([m
+[32m+[m[32m    PanResponder.create({[m
+[32m+[m[32m      onStartShouldSetPanResponder: () => showCropFrame && !draggingHandle,[m
+[32m+[m[32m      onMoveShouldSetPanResponder: () => showCropFrame && !draggingHandle,[m
+[32m+[m[32m      onPanResponderGrant: (evt) => {[m
+[32m+[m[32m        if (!showCropFrame || draggingHandle) return;[m
+[32m+[m[32m        setIsDragging(true);[m
+[32m+[m[32m        setDragStart({ x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY });[m
+[32m+[m[32m      },[m
+[32m+[m[32m      onPanResponderMove: (evt) => {[m
+[32m+[m[32m        if (!showCropFrame || draggingHandle) return;[m
+[32m+[m[41m        [m
+[32m+[m[32m        try {[m
+[32m+[m[32m          const { locationX, locationY } = evt.nativeEvent;[m
+[32m+[m[32m          const deltaX = locationX - dragStart.x;[m
+[32m+[m[32m          const deltaY = locationY - dragStart.y;[m
+[32m+[m[41m          [m
+[32m+[m[32m          if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;[m
+[32m+[m[41m          [m
+[32m+[m[32m          setCropArea(prev => {[m
+[32m+[m[32m            const maxWidth = screenWidth;[m
+[32m+[m[32m            const maxHeight = screenHeight - 200; // Full height minus header and button area[m
+[32m+[m[41m            [m
+[32m+[m[32m            return {[m
+[32m+[m[32m              ...prev,[m
+[32m+[m[32m              x: Math.max(0, Math.min(maxWidth - prev.width, prev.x + deltaX)),[m
+[32m+[m[32m              y: Math.max(0, Math.min(maxHeight - prev.height, prev.y + deltaY)),[m
+[32m+[m[32m            };[m
+[32m+[m[32m          });[m
+[32m+[m[41m          [m
+[32m+[m[32m          setDragStart({ x: locationX, y: locationY });[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m          console.warn('Error in main pan responder:', error);[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m      onPanResponderRelease: () => {[m
+[32m+[m[32m        setIsDragging(false);[m
+[32m+[m[32m      },[m
+[32m+[m[32m    })[m
+[32m+[m[32m  ).current;[m
+[32m+[m
+[32m+[m[32m  // PanResponder for corner handles - stretchable[m
+[32m+[m[32m  const createCornerPanResponder = (handleType) => {[m
+[32m+[m[32m    return PanResponder.create({[m
+[32m+[m[32m      onStartShouldSetPanResponder: () => true,[m
+[32m+[m[32m      onMoveShouldSetPanResponder: () => true,[m
+[32m+[m[32m      onPanResponderGrant: (evt) => {[m
+[32m+[m[32m        if (!showCropFrame) return;[m
+[32m+[m[32m        setDraggingHandle(handleType);[m
+[32m+[m[32m        setDragStart({ x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY });[m
+[32m+[m[32m      },[m
+[32m+[m[32m      onPanResponderMove: (evt) => {[m
+[32m+[m[32m        if (!showCropFrame || draggingHandle !== handleType) return;[m
+[32m+[m[41m        [m
+[32m+[m[32m        try {[m
+[32m+[m[32m          const { locationX, locationY } = evt.nativeEvent;[m
+[32m+[m[32m          const deltaX = locationX - dragStart.x;[m
+[32m+[m[32m          const deltaY = locationY - dragStart.y;[m
+[32m+[m[41m          [m
+[32m+[m[32m          if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;[m
+[32m+[m[41m          [m
+[32m+[m[32m          setCropArea(prev => {[m
+[32m+[m[32m            const maxWidth = screenWidth;[m
+[32m+[m[32m            const maxHeight = screenHeight - 200; // Full height minus header and button area[m
+[32m+[m[41m            [m
+[32m+[m[32m            let newCropArea = { ...prev };[m
+[32m+[m[41m            [m
+[32m+[m[32m            switch (handleType) {[m
+[32m+[m[32m              case 'topLeft':[m
+[32m+[m[32m                newCropArea.x = Math.max(0, prev.x + deltaX);[m
+[32m+[m[32m                newCropArea.y = Math.max(0, prev.y + deltaY);[m
+[32m+[m[32m                newCropArea.width = Math.max(minCropSize, prev.width - deltaX);[m
+[32m+[m[32m                newCropArea.height = Math.max(minCropSize, prev.height - deltaY);[m
+[32m+[m[32m                break;[m
+[32m+[m[32m              case 'topRight':[m
+[32m+[m[32m                newCropArea.y = Math.max(0, prev.y + deltaY);[m
+[32m+[m[32m                newCropArea.width = Math.max(minCropSize, Math.min(prev.width + deltaX, maxWidth - prev.x));[m
+[32m+[m[32m                newCropArea.height = Math.max(minCropSize, prev.height - deltaY);[m
+[32m+[m[32m                break;[m
+[32m+[m[32m              case 'bottomLeft':[m
+[32m+[m[32m                newCropArea.x = Math.max(0, prev.x + deltaX);[m
+[32m+[m[32m                newCropArea.width = Math.max(minCropSize, prev.width - deltaX);[m
+[32m+[m[32m                newCropArea.height = Math.max(minCropSize, Math.min(prev.height + deltaY, maxHeight - prev.y));[m
+[32m+[m[32m                break;[m
+[32m+[m[32m              case 'bottomRight':[m
+[32m+[m[32m                newCropArea.width = Math.max(minCropSize, Math.min(prev.width + deltaX, maxWidth - prev.x));[m
+[32m+[m[32m                newCropArea.height = Math.max(minCropSize, Math.min(prev.height + deltaY, maxHeight - prev.y));[m
+[32m+[m[32m                break;[m
+[32m+[m[32m            }[m
+[32m+[m[41m            [m
+[32m+[m[32m            newCropArea.x = Math.max(0, Math.min(newCropArea.x, maxWidth - newCropArea.width));[m
+[32m+[m[32m            newCropArea.y = Math.max(0, Math.min(newCropArea.y, maxHeight - newCropArea.height));[m
+[32m+[m[32m            newCropArea.width = Math.max(minCropSize, newCropArea.width);[m
+[32m+[m[32m            newCropArea.height = Math.max(minCropSize, newCropArea.height);[m
+[32m+[m[41m            [m
+[32m+[m[32m            return newCropArea;[m
+[32m+[m[32m          });[m
+[32m+[m[41m          [m
+[32m+[m[32m          setDragStart({ x: locationX, y: locationY });[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m          console.warn('Error in corner pan responder:', error);[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m      onPanResponderRelease: () => {[m
+[32m+[m[32m        setDraggingHandle(null);[m
+[32m+[m[32m      },[m
+     });[m
+   };[m
+ [m
+[31m-  if (!visible) return null;[m
+[32m+[m[32m  const handleCrop = () => {[m
+[32m+[m[32m    if (!imageUri || isVideo) return;[m
+[32m+[m[32m    setShowCropFrame(true);[m
+[32m+[m[32m    setDraggingHandle(null);[m
+[32m+[m[32m    setIsDragging(false);[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  const handleApplyCrop = () => {[m
+[32m+[m[32m    if (!imageUri) {[m
+[32m+[m[32m      Alert.alert('Error', `No ${isVideo ? 'video' : 'image'} selected`);[m
+[32m+[m[32m      return;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    setIsProcessing(true);[m
+[32m+[m[41m    [m
+[32m+[m[32m    setTimeout(() => {[m
+[32m+[m[32m      const croppedMedia = {[m
+[32m+[m[32m        uri: imageUri,[m
+[32m+[m[32m        width: showCropFrame ? cropArea.width : imageDimensions.width,[m
+[32m+[m[32m        height: showCropFrame ? cropArea.height : imageDimensions.height,[m
+[32m+[m[32m        fileName: isVideo ? `video_${Date.now()}.mp4` : `cropped_${Date.now()}.jpg`,[m
+[32m+[m[32m        type: isVideo ? 'video' : 'image',[m
+[32m+[m[32m        cropArea: showCropFrame ? cropArea : null,[m
+[32m+[m[32m      };[m
+[32m+[m[41m      [m
+[32m+[m[32m      onClose();[m
+[32m+[m[32m      onImageCropped(croppedMedia);[m
+[32m+[m[32m      setIsProcessing(false);[m
+[32m+[m[32m    }, 1000);[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  const handleNext = () => {[m
+[32m+[m[32m    if (!imageUri) {[m
+[32m+[m[32m      Alert.alert('Error', `No ${isVideo ? 'video' : 'image'} selected`);[m
+[32m+[m[32m      return;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    setIsProcessing(true);[m
+[32m+[m[41m    [m
+[32m+[m[32m    setTimeout(() => {[m
+[32m+[m[32m      const croppedMedia = {[m
+[32m+[m[32m        uri: imageUri,[m
+[32m+[m[32m        width: showCropFrame ? cropArea.width : imageDimensions.width,[m
+[32m+[m[32m        height: showCropFrame ? cropArea.height : imageDimensions.height,[m
+[32m+[m[32m        fileName: isVideo ? `video_${Date.now()}.mp4` : `cropped_${Date.now()}.jpg`,[m
+[32m+[m[32m        type: isVideo ? 'video' : 'image',[m
+[32m+[m[32m        cropArea: showCropFrame ? cropArea : null,[m
+[32m+[m[32m      };[m
+[32m+[m[41m      [m
+[32m+[m[32m      setIsProcessing(false);[m
+[32m+[m[41m      [m
+[32m+[m[32m      // Navigate to UploadVibesScreen[m
+[32m+[m[32m      onClose();[m
+[32m+[m[32m      navigation.navigate('UploadVibes', {[m
+[32m+[m[32m        imageUri: imageUri,[m
+[32m+[m[32m        mediaType: mediaType,[m
+[32m+[m[32m        croppedMedia: croppedMedia,[m
+[32m+[m[32m      });[m
+[32m+[m[32m    }, 300);[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // Crop Icon Component[m
+[32m+[m[32m  const CropIcon = ({ width = 20, height = 20, color = "#fff" }) => ([m
+[32m+[m[32m    <View style={{ width, height }}>[m
+[32m+[m[32m      <View style={{[m
+[32m+[m[32m        position: 'absolute',[m
+[32m+[m[32m        top: 0,[m
+[32m+[m[32m        left: 0,[m
+[32m+[m[32m        width: width * 0.6,[m
+[32m+[m[32m        height: 2,[m
+[32m+[m[32m        backgroundColor: color,[m
+[32m+[m[32m      }} />[m
+[32m+[m[32m      <View style={{[m
+[32m+[m[32m        position: 'absolute',[m
+[32m+[m[32m        top: 0,[m
+[32m+[m[32m        left: 0,[m
+[32m+[m[32m        width: 2,[m
+[32m+[m[32m        height: width * 0.6,[m
+[32m+[m[32m        backgroundColor: color,[m
+[32m+[m[32m      }} />[m
+[32m+[m[32m      <View style={{[m
+[32m+[m[32m        position: 'absolute',[m
+[32m+[m[32m        bottom: 0,[m
+[32m+[m[32m        right: 0,[m
+[32m+[m[32m        width: width * 0.6,[m
+[32m+[m[32m        height: 2,[m
+[32m+[m[32m        backgroundColor: color,[m
+[32m+[m[32m      }} />[m
+[32m+[m[32m      <View style={{[m
+[32m+[m[32m        position: 'absolute',[m
+[32m+[m[32m        bottom: 0,[m
+[32m+[m[32m        right: 0,[m
+[32m+[m[32m        width: 2,[m
+[32m+[m[32m        height: width * 0.6,[m
+[32m+[m[32m        backgroundColor: color,[m
+[32m+[m[32m      }} />[m
+[32m+[m[32m    </View>[m
+[32m+[m[32m  );[m
+[32m+[m
+[32m+[m[32m  // Back Icon Component[m
+[32m+[m[32m  const BackIcon = () => ([m
+[32m+[m[32m    <Text style={styles.backIcon}>←</Text>[m
+[32m+[m[32m  );[m
+[32m+[m
+[32m+[m[32m  if (!visible) {[m
+[32m+[m[32m    return null;[m
+[32m+[m[32m  }[m
+ [m
+   return ([m
+[31m-    <Modal visible={visible} animationType="slide">[m
+[31m-      <View style={styles.container}>[m
+[32m+[m[32m    <Modal[m
+[32m+[m[32m      visible={visible}[m
+[32m+[m[32m      animationType="slide"[m
+[32m+[m[32m      presentationStyle="fullScreen"[m
+[32m+[m[32m      onRequestClose={onClose}[m
+[32m+[m[32m    >[m
+[32m+[m[32m      <SafeAreaView style={styles.container}>[m
+[32m+[m[32m        <StatusBar barStyle="light-content" backgroundColor="#000" />[m
+[32m+[m[41m        [m
+[32m+[m[32m        {/* Header - Screenshot2 style: Back left, Crop right */}[m
+         <View style={styles.header}>[m
+[31m-          <TouchableOpacity onPress={onClose}>[m
+[31m-            <Text style={styles.back}>Back</Text>[m
+[31m-          </TouchableOpacity>[m
+[31m-          <Text style={styles.title}>Crop {isVideo ? 'Video' : 'Image'}</Text>[m
+[31m-          <TouchableOpacity onPress={handleNext}>[m
+[31m-            <Text style={styles.next}>Next</Text>[m
+[32m+[m[32m          <TouchableOpacity onPress={onClose} style={styles.backButton}>[m
+[32m+[m[32m            <BackIcon />[m
+           </TouchableOpacity>[m
+[32m+[m[32m          <View style={styles.headerCenter} />[m
+[32m+[m[32m          {!isVideo && ([m
+[32m+[m[32m            <TouchableOpacity onPress={handleCrop} style={styles.cropButton}>[m
+[32m+[m[32m              <CropIcon width={20} height={20} color="#fff" />[m
+[32m+[m[32m              <Text style={styles.cropButtonText}>Crop</Text>[m
+[32m+[m[32m            </TouchableOpacity>[m
+[32m+[m[32m          )}[m
+[32m+[m[32m          {isVideo && <View style={styles.cropButton} />}[m
+         </View>[m
+ [m
+[31m-        <View style={styles.mediaContainer}>[m
+[31m-          {isVideo ? ([m
+[31m-            <Video[m
+[31m-              ref={videoRef}[m
+[31m-              source={{ uri: imageUri }}[m
+[31m-              style={styles.media}[m
+[31m-              resizeMode="cover"[m
+[31m-              repeat={true}[m
+[31m-              controls={true}[m
+[31m-              onError={(e) => Alert.alert('Error', 'Video failed to load')}[m
+[31m-            />[m
+[32m+[m[32m        {/* Media (Image/Video) with interactive crop area */}[m
+[32m+[m[32m        <View style={styles.imageContainer}>[m
+[32m+[m[32m          {imageUri ? ([m
+[32m+[m[32m            <View style={styles.imageWrapper}>[m
+[32m+[m[32m              {isVideo ? ([m
+[32m+[m[32m                <View style={styles.videoWrapper}>[m
+[32m+[m[32m                  <Video[m
+[32m+[m[32m                    ref={videoRef}[m
+[32m+[m[32m                    source={{ uri: imageUri }}[m
+[32m+[m[32m                    style={styles.previewImage}[m
+[32m+[m[32m                    resizeMode="cover"[m
+[32m+[m[32m                    paused={isVideoPaused}[m
+[32m+[m[32m                    repeat={true}[m
+[32m+[m[32m                    muted={false}[m
+[32m+[m[32m                    controls={true}[m
+[32m+[m[32m                    playInBackground={false}[m
+[32m+[m[32m                    playWhenInactive={false}[m
+[32m+[m[32m                    onLoad={(data) => {[m
+[32m+[m[32m                      setImageDimensions({ width: data.width || screenWidth, height: data.height || (screenHeight - 200) });[m
+[32m+[m[32m                    }}[m
+[32m+[m[32m                    onError={(error) => {[m
+[32m+[m[32m                      console.error('❌ Video error:', error);[m
+[32m+[m[32m                      Alert.alert('Error', 'Failed to load video');[m
+[32m+[m[32m                    }}[m
+[32m+[m[32m                  />[m
+[32m+[m[32m                </View>[m
+[32m+[m[32m              ) : ([m
+[32m+[m[32m                <Image[m[41m [m
+[32m+[m[32m                  ref={imageRef}[m
+[32m+[m[32m                  source={{ uri: imageUri }}[m[41m [m
+[32m+[m[32m                  style={styles.previewImage}[m
+[32m+[m[32m                  resizeMode="contain"[m
+[32m+[m[32m                  onLoad={(event) => {[m
+[32m+[m[32m                    const { width, height } = event.nativeEvent.source;[m
+[32m+[m[32m                    setImageDimensions({ width, height });[m
+[32m+[m[32m                  }}[m
+[32m+[m[32m                />[m
+[32m+[m[32m              )}[m
+[32m+[m[41m              [m
+[32m+[m[32m              {/* Interactive Crop Area - Only show when crop button is clicked (images only) */}[m
+[32m+[m[32m              {showCropFrame && !isVideo && ([m
+[32m+[m[32m                <View style={styles.cropContainer}>[m
+[32m+[m[32m                  {/* Dark overlay outside crop area */}[m
+[32m+[m[32m                  <View style={[styles.overlayTop, { height: cropArea.y }]} />[m
+[32m+[m[32m                  <View style={[styles.overlayBottom, {[m[41m [m
+[32m+[m[32m                    height: (screenHeight - 200) - cropArea.y - cropArea.height[m[41m [m
+[32m+[m[32m                  }]} />[m
+[32m+[m[32m                  <View style={[styles.overlayLeft, {[m[41m [m
+[32m+[m[32m                    top: cropArea.y,[m
+[32m+[m[32m                    width: cropArea.x,[m
+[32m+[m[32m                    height: cropArea.height[m[41m [m
+[32m+[m[32m                  }]} />[m
+[32m+[m[32m                  <View style={[styles.overlayRight, {[m[41m [m
+[32m+[m[32m          

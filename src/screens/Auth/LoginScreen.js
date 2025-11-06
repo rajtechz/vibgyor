@@ -1,6 +1,6 @@
 // src/screens/Auth/LoginScreen.js
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Redux imports removed for direct API integration
 import { useNavigation } from '@react-navigation/native';
@@ -8,6 +8,8 @@ import Svg, { Path } from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
 import CommonBackground from '../../components/common/CommonBackground';
 import CustomButton from '../../components/common/CustomButton';
+import SuccessModal from '../../components/common/SuccessModal';
+import ErrorModal from '../../components/common/ErrorModal';
 import { authAPI } from '../../api/authAPI';
 import { useDispatch } from 'react-redux';
 import { setPhoneNumber as setPhoneNumberRedux } from '../../redux/slices/authSlice';
@@ -19,6 +21,10 @@ function LoginScreen() {
   const [countryCode, setCountryCode] = useState('+91');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Professional API call using authAPI service
   const sendOTPAPI = async (phoneNumber, countryCode) => {
@@ -67,13 +73,15 @@ function LoginScreen() {
     // Validate phone number
     if (!phoneNumber.trim()) {
       console.log('❌ LoginScreen: Phone number is empty');
-      Alert.alert('Error', 'Please enter your phone number');
+      setErrorMessage('Please enter your phone number');
+      setShowErrorModal(true);
       return;
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
       console.log('❌ LoginScreen: Invalid phone number format');
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      setErrorMessage('Please enter a valid 10-digit phone number');
+      setShowErrorModal(true);
       return;
     }
 
@@ -93,21 +101,15 @@ function LoginScreen() {
       
       if (result.success) {
         console.log('✅ OTP Sent Successfully:', result);
-        Alert.alert(
-          'OTP Sent',
-          `Verification code has been sent to ${result.data.maskedPhone || 'your phone number'}.`,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('VerifyNumber'),
-            },
-          ]
-        );
+        const message = `Verification code has been sent to ${result.data.maskedPhone || 'your phone number'}.`;
+        setSuccessMessage(message);
+        setShowSuccessModal(true);
       }
     } catch (error) {
       console.error('💥 LoginScreen: Error in handleSubmit:', error);
       setError(error.message);
-      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+      setErrorMessage(error.message || 'Failed to send OTP. Please try again.');
+      setShowErrorModal(true);
     } finally {
       setIsLoading(false);
     }
@@ -162,12 +164,28 @@ function LoginScreen() {
             disabled={isLoading}
           />
 
-        
-       
-
-       
         </View>
       </SafeAreaView>
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        title="OTP Sent"
+        message={successMessage}
+        onClose={() => setShowSuccessModal(false)}
+        onButtonPress={() => {
+          setShowSuccessModal(false);
+          navigation.navigate('VerifyNumber');
+        }}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        visible={showErrorModal}
+        title="Error"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </CommonBackground>
   );
 }

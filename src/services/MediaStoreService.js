@@ -1,4 +1,6 @@
+// MediaStoreService.js
 import { Platform, PermissionsAndroid } from 'react-native';
+import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import RNFS from 'react-native-fs';
 import { launchImageLibrary } from 'react-native-image-picker';
 import CreateThumbnail from 'react-native-create-thumbnail';
@@ -12,12 +14,6 @@ const normalizeTimestamp = (t) => {
 };
 
 class MediaStoreService {
-  constructor() {
-    this.galleryImages = [];
-    this.permissionsGranted = false;
-  }
-
-  // Request necessary permissions (Instagram style - silent)
   async requestPermissions() {
     // Instagram style - assume permissions are granted and let the system handle it
     this.permissionsGranted = true;
@@ -422,14 +418,7 @@ class MediaStoreService {
 
   // Get camera preview placeholder
   getCameraPlaceholder() {
-    return {
-      id: 'camera_preview',
-      uri: null, // Will be handled by camera component
-      type: 'camera',
-      isVideo: false,
-      fileName: 'camera',
-      isCamera: true,
-    };
+    return { id: 'camera', isCamera: true, type: 'camera' };
   }
 }
 

@@ -1,8 +1,8 @@
-// src/components/common/ErrorModal.js
+// src/components/common/SuccessModal.js
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Circle } from 'react-native-svg';
 import { colors, gradients } from '../../styles/colors';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -20,33 +20,44 @@ const CloseIcon = ({ width = 24, height = 24, color = '#FFFFFF' }) => (
   </Svg>
 );
 
-// Error Icon Component
-const ErrorIcon = ({ width = 60, height = 60 }) => (
+// Success Icon Component
+const SuccessIcon = ({ width = 60, height = 60 }) => (
   <Svg width={width} height={height} viewBox="0 0 60 60" fill="none">
-    <Path
-      d="M30 5C16.745 5 6 15.745 6 30C6 44.255 16.745 55 30 55C43.255 55 54 44.255 54 30C54 15.745 43.255 5 30 5Z"
-      fill="url(#paint0_linear_error)"
-      stroke="#FF4444"
+    <Circle
+      cx="30"
+      cy="30"
+      r="25"
+      fill="url(#paint0_linear_success)"
+      stroke="#00C851"
       strokeWidth="2"
     />
     <Path
-      d="M30 20V35M30 40H30.01"
+      d="M20 30L27 37L40 24"
       stroke="white"
       strokeWidth="3"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
     <Defs>
-      <SvgLinearGradient id="paint0_linear_error" x1="6" y1="6" x2="54" y2="54" gradientUnits="userSpaceOnUse">
-        <Stop stopColor="#FF4444"/>
-        <Stop offset="1" stopColor="#CC0000"/>
+      <SvgLinearGradient id="paint0_linear_success" x1="5" y1="5" x2="55" y2="55" gradientUnits="userSpaceOnUse">
+        <Stop stopColor="#00C851"/>
+        <Stop offset="1" stopColor="#007E33"/>
       </SvgLinearGradient>
     </Defs>
   </Svg>
 );
 
-function ErrorModal({ visible, message, onClose, title = "Error" }) {
+function SuccessModal({ visible, message, onClose, title = "Success", onButtonPress }) {
   if (!visible) return null;
+
+  const handleButtonPress = () => {
+    if (onButtonPress) {
+      onButtonPress();
+    }
+    if (onClose) {
+      onClose();
+    }
+  };
 
   return (
     <Modal
@@ -73,7 +84,7 @@ function ErrorModal({ visible, message, onClose, title = "Error" }) {
               </TouchableOpacity>
 
               <View style={styles.iconContainer}>
-                <ErrorIcon width={60} height={60} />
+                <SuccessIcon width={60} height={60} />
               </View>
               
               <Text style={styles.modalTitle}>{title}</Text>
@@ -81,7 +92,7 @@ function ErrorModal({ visible, message, onClose, title = "Error" }) {
 
               <TouchableOpacity
                 style={styles.okButton}
-                onPress={onClose}
+                onPress={handleButtonPress}
                 activeOpacity={0.8}
               >
                 <LinearGradient
@@ -177,4 +188,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ErrorModal;
+export default SuccessModal;
+
