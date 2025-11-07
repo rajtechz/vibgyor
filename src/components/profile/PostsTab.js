@@ -53,10 +53,14 @@ const PostsTab = ({ navigation, refreshKey = 0 }) => {
         }
 
         setPagination({
-          page: result.data.pagination.page,
-          limit: result.data.pagination.limit,
-          hasMore: result.data.pagination.hasMore,
-          totalCount: result.data.totalCount,
+          page: result.data.pagination.page || result.data.pagination.currentPage || 1,
+          limit: result.data.pagination.limit || pagination.limit,
+          hasMore: result.data.pagination.hasMore !== undefined 
+                   ? result.data.pagination.hasMore 
+                   : (result.data.pagination.hasNext !== undefined 
+                      ? result.data.pagination.hasNext 
+                      : false),
+          totalCount: result.data.totalCount || result.data.pagination.totalPosts || 0,
         });
 
         console.log('✅ PostsTab: Posts fetched successfully, count:', newPosts.length);
@@ -131,9 +135,20 @@ const PostsTab = ({ navigation, refreshKey = 0 }) => {
   // Render post item
   const renderPostItem = useCallback(({ item, index }) => {
     // Get the first media item (image or video thumbnail)
-    const firstMedia = item.mediaItems?.[0] || item.media?.[0] || item.files?.[0];
-    const imageUri = firstMedia?.uri || firstMedia?.url || firstMedia?.thumbnailUri;
-    const isVideo = firstMedia?.isVideo || firstMedia?.type === 'video';
+    // Handle both API response format (media array with url) and transformed format
+    let firstMedia, imageUri, isVideo;
+    
+    if (item.media && Array.isArray(item.media)) {
+      // API response format: media array with url field
+      firstMedia = item.media[0];
+      imageUri = firstMedia?.url || firstMedia?.uri || firstMedia?.thumbnailUri;
+      isVideo = firstMedia?.type === 'video';
+    } else {
+      // Transformed format or legacy format
+      firstMedia = item.mediaItems?.[0] || item.media?.[0] || item.files?.[0];
+      imageUri = firstMedia?.uri || firstMedia?.url || firstMedia?.thumbnailUri;
+      isVideo = firstMedia?.isVideo || firstMedia?.type === 'video';
+    }
 
     return (
       <TouchableOpacity

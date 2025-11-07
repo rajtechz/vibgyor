@@ -247,7 +247,17 @@ const request = async (endpoint, options = {}, retryCount = 0) => {
       } catch {
         errorData = { message: responseText || `HTTP Error: ${response.status}` };
       }
-      throw new Error(errorData.message || `HTTP Error: ${response.status}`);
+      
+      // Log detailed error information
+      console.error(`❌ API Error Response (${response.status}):`, errorData);
+      console.error('❌ Full Error Response Text:', responseText);
+      
+      // Create error with more details
+      const errorMessage = errorData.message || errorData.error || `HTTP Error: ${response.status}`;
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      error.data = errorData;
+      throw error;
     }
 
     // Parse successful response

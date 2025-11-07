@@ -96,34 +96,92 @@ export const createPost = async (postData) => {
 
     // Add media files
     if (postData.mediaItems && postData.mediaItems.length > 0) {
+      let validFilesCount = 0;
       postData.mediaItems.forEach((item, index) => {
-        if (item.uri) {
+        if (item.uri && item.uri.trim()) {
+          // Use URI as-is (React Native FormData needs file:// prefix for local files)
+          let fileUri = item.uri;
+          
           // Determine file type
           const isVideo = item.isVideo || item.type === 'video';
-          const fileExtension = isVideo ? 'mp4' : 'jpg';
-          const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+          
+          // Try to detect file extension from URI
+          let fileExtension = 'jpg';
+          const uriMatch = fileUri.match(/\.([a-zA-Z0-9]+)(\?|$)/);
+          if (uriMatch) {
+            fileExtension = uriMatch[1].toLowerCase();
+          } else {
+            fileExtension = isVideo ? 'mp4' : 'jpg';
+          }
+          
+          // Set appropriate MIME type based on extension
+          let mimeType = 'image/jpeg';
+          if (isVideo) {
+            mimeType = 'video/mp4';
+          } else {
+            switch (fileExtension.toLowerCase()) {
+              case 'png':
+                mimeType = 'image/png';
+                break;
+              case 'jpg':
+              case 'jpeg':
+                mimeType = 'image/jpeg';
+                break;
+              case 'gif':
+                mimeType = 'image/gif';
+                break;
+              case 'webp':
+                mimeType = 'image/webp';
+                break;
+              default:
+                mimeType = 'image/jpeg';
+            }
+          }
           
           // Get filename from URI or generate one
           let fileName = item.fileName;
           if (!fileName) {
-            const uriParts = item.uri.split('/');
-            fileName = uriParts[uriParts.length - 1] || `media_${index}.${fileExtension}`;
+            const uriParts = fileUri.split('/');
+            const lastPart = uriParts[uriParts.length - 1];
+            // Remove query parameters if any
+            const cleanLastPart = lastPart.split('?')[0];
+            fileName = cleanLastPart || `media_${index}.${fileExtension}`;
           }
 
           // Ensure filename has proper extension
-          if (!fileName.match(/\.(jpg|jpeg|png|mp4|mov|avi)$/i)) {
+          if (!fileName.match(/\.(jpg|jpeg|png|gif|webp|mp4|mov|avi)$/i)) {
             fileName = `${fileName}.${fileExtension}`;
           }
+
+          console.log(`📎 Adding file ${index + 1}/${postData.mediaItems.length}:`, {
+            uri: fileUri.substring(0, 50) + '...',
+            type: mimeType,
+            name: fileName,
+            isVideo,
+          });
 
           // Append file to FormData
           // Note: For React Native, FormData file format is: { uri, type, name }
           formData.append('files', {
-            uri: item.uri,
+            uri: fileUri,
             type: mimeType,
             name: fileName,
           });
+          validFilesCount++;
+        } else {
+          console.warn(`⚠️ Skipping media item ${index + 1}: No URI provided`);
         }
       });
+      
+      if (validFilesCount === 0) {
+        return {
+          success: false,
+          error: 'No valid media files found',
+          message: 'Please select at least one valid image or video to upload',
+        };
+      }
+      
+      console.log(`✅ Added ${validFilesCount} valid file(s) to FormData`);
     }
 
     console.log('📤 FormData created with fields:', {
@@ -156,11 +214,29 @@ export const createPost = async (postData) => {
     console.log('❌ SocialAPI: createPost error');
     console.log('💥 Error Message:', error.message);
     console.log('💥 Error Stack:', error.stack);
+    
+    // Log more detailed error information
+    if (error.status) {
+      console.log('💥 Error Status:', error.status);
+    }
+    if (error.data) {
+      console.log('💥 Error Data:', JSON.stringify(error.data, null, 2));
+    }
+    
+    // Extract more detailed error message
+    let errorMessage = error.message || 'Failed to create post';
+    if (error.data?.message) {
+      errorMessage = error.data.message;
+    } else if (error.data?.error) {
+      errorMessage = error.data.error;
+    }
 
     return {
       success: false,
-      error: error.message,
-      message: 'Failed to create post',
+      error: errorMessage,
+      message: errorMessage,
+      details: error.data || null,
+      status: error.status || null,
     };
   }
 };
@@ -196,27 +272,32 @@ export const getUserPosts = async (accessToken = null, options = {}) => {
     console.log('📊 Response Data:', JSON.stringify(responseData, null, 2));
 
     // Extract posts and pagination data from response
-    // Response structure may vary, so we handle multiple possible formats
+    // Response structure: { success, data: { posts, pagination: { currentPage, totalPages, totalPosts, hasNext, hasPrev } } }
     const posts = responseData?.data?.posts || 
                   responseData?.data?.data || 
                   responseData?.posts || 
                   responseData?.data || 
                   [];
     
-    const totalCount = responseData?.data?.total || 
+    const paginationData = responseData?.data?.pagination || {};
+    const totalCount = paginationData.totalPosts || 
+                       responseData?.data?.total || 
                        responseData?.data?.totalCount || 
                        responseData?.total || 
                        posts.length;
     
     const pagination = {
-      page: responseData?.data?.page || page,
+      page: paginationData.currentPage || responseData?.data?.page || page,
       limit: responseData?.data?.limit || limit,
-      totalPages: responseData?.data?.totalPages || 
+      totalPages: paginationData.totalPages || 
+                  responseData?.data?.totalPages || 
                   responseData?.data?.pages || 
                   Math.ceil(totalCount / limit),
-      hasMore: responseData?.data?.hasMore !== undefined 
-               ? responseData.data.hasMore 
-               : (responseData?.data?.page || page) < Math.ceil(totalCount / limit),
+      hasMore: paginationData.hasNext !== undefined 
+               ? paginationData.hasNext 
+               : (responseData?.data?.hasMore !== undefined 
+                  ? responseData.data.hasMore 
+                  : (paginationData.currentPage || responseData?.data?.page || page) < Math.ceil(totalCount / limit)),
     };
 
     return {

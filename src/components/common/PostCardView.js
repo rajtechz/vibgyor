@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, Modal, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import SwiperFlatList from 'react-native-swiper-flatlist';
 import { AccountVerifyBadge, HamburgerIcon, LikeIcon, CommentIcon, ShareIcon, TrashIcon } from '../icons/SvgIcons';
 import Svg, { Path } from 'react-native-svg';
 
@@ -13,6 +14,21 @@ const PostCardView = ({ post, onPress, onCommentPress, showCommentInput, comment
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes);
   const moreButtonRef = useRef(null);
+
+  // Debug log for image data - must be called in the same order every render
+  useEffect(() => {
+    if (post?.id) {
+      console.log('🖼️ PostCardView - Post ID:', post.id, {
+        hasImages: !!post.images,
+        imagesType: typeof post.images,
+        isArray: Array.isArray(post.images),
+        imagesLength: Array.isArray(post.images) ? post.images.length : 'N/A',
+        firstImage: post.images && Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : null,
+        hasImage: !!post.image,
+        image: post.image,
+      });
+    }
+  }, [post?.id, post?.images, post?.image]);
 
   const handleMorePress = (event) => {
     event.stopPropagation(); // Prevent triggering the post press
@@ -95,12 +111,118 @@ const PostCardView = ({ post, onPress, onCommentPress, showCommentInput, comment
         </TouchableOpacity>
       </View>
 
-      {/* Post Content */}
+      {/* Post Content - Instagram-like Image Swiper */}
       <View style={styles.postContent}>
-      
-        {post.image && (
-          <Image source={post.image} style={styles.postImage} resizeMode="cover" />
-        )}
+        {(() => {
+          // Check for images array (for multiple images support)
+          const hasImagesArray = post.images && Array.isArray(post.images) && post.images.length > 0;
+          const imagesCount = hasImagesArray ? post.images.length : 0;
+          
+          // Debug logging
+          console.log('🖼️ PostCardView Render:', {
+            postId: post?.id || post?._id,
+            hasImagesArray,
+            imagesCount,
+            images: post?.images,
+            hasImage: !!post?.image,
+          });
+          
+          if (hasImagesArray) {
+            // Multiple images - use SwiperFlatList (Instagram-style carousel)
+            if (imagesCount > 1) {
+              console.log('📸 Rendering SwiperFlatList with', imagesCount, 'images');
+              return (
+                <View style={styles.swiperContainer}>
+                  <SwiperFlatList
+                    data={post.images}
+                    renderItem={({ item, index }) => {
+                      console.log(`🖼️ Rendering image ${index}:`, item);
+                      if (!item || !item.uri) {
+                        console.error(`❌ Invalid item at index ${index}:`, item);
+                        return (
+                          <View style={styles.imageWrapper}>
+                            <Text style={{ color: 'white' }}>Invalid Image</Text>
+                          </View>
+                        );
+                      }
+                      return (
+                        <View style={styles.imageWrapper}>
+                          <Image 
+                            source={item} 
+                            style={styles.postImage} 
+                            resizeMode="cover"
+                            onError={(error) => {
+                              console.error(`❌ Image ${index} error:`, error.nativeEvent);
+                            }}
+                            onLoad={() => {
+                              console.log(`✅ Image ${index} loaded:`, item.uri);
+                            }}
+                          />
+                        </View>
+                      );
+                    }}
+                    horizontal
+                    showPagination={true}
+                    paginationDefaultColor="rgba(255, 255, 255, 0.5)"
+                    paginationActiveColor="#FFFFFF"
+                    paginationStyle={styles.swiperPagination}
+                    paginationStyleItem={styles.swiperPaginationItem}
+                    keyExtractor={(item, index) => {
+                      const key = `image-${post.id}-${index}-${item?.uri || 'no-uri'}`;
+                      console.log(`🔑 Key for item ${index}:`, key);
+                      return key;
+                    }}
+                    autoplay={false}
+                    autoplayDelay={3}
+                    autoplayLoop={false}
+                    index={0}
+                    removeClippedSubviews={false}
+                  />
+                </View>
+              );
+            } else {
+              // Single image from images array
+              console.log('📸 Rendering single image from array');
+              return (
+                <Image 
+                  source={post.images[0]} 
+                  style={styles.postImage} 
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.error('❌ Single image error:', error.nativeEvent);
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Single image loaded');
+                  }}
+                />
+              );
+            }
+          } else if (post.image) {
+            // Fallback to single image prop
+            console.log('📸 Rendering fallback single image');
+            return (
+              <Image 
+                source={post.image} 
+                style={styles.postImage} 
+                resizeMode="cover"
+                onError={(error) => {
+                  console.error('❌ Fallback image error:', error.nativeEvent);
+                }}
+                onLoad={() => {
+                  console.log('✅ Fallback image loaded');
+                }}
+              />
+            );
+          } else {
+            // No image placeholder
+            console.log('⚠️ No images found, showing placeholder');
+            return (
+              <View style={[styles.postImage, styles.noImageContainer]}>
+                <Text style={styles.noImageText}>No Image</Text>
+              </View>
+            );
+          }
+        })()}
       </View>
 
       {/* Post Actions */}
@@ -302,11 +424,43 @@ const styles = StyleSheet.create({
   },
   postContent: {
     marginBottom: 12,
+    position: 'relative',
+  },
+  swiperContainer: {
+    width: '100%',
+    height: 450,
+    position: 'relative',
+  },
+  imageWrapper: {
+    width: '100%',
+    height: 450,
   },
   postImage: {
     width: '100%',
     height: 450,
     borderRadius: 12,
+    backgroundColor: '#1a1a1a',
+  },
+  swiperPagination: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    zIndex: 10,
+  },
+  swiperPaginationItem: {
+    width: 6,
+    height: 6,
+    marginHorizontal: 3,
+    borderRadius: 3,
+  },
+  noImageContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noImageText: {
+    color: '#B0B0B0',
+    fontSize: 14,
   },
   postActions: {
     flexDirection: 'row',
